@@ -1,7 +1,3 @@
-# -*- mode: python -*-
-#!/bin/sh
-"exec" "$(dirname $0)/.venv/bin/python" "$0" "$@"
-
 import os
 import sys
 import re
@@ -12,12 +8,8 @@ import random
 import colorsys
 from pathlib import Path
 
-# from collections import OrderedDict
 
-# from typing import orderedDict
-
-
-CONFIG_FILE = "~/.sink-projects"
+CONFIG_FILE = "~/.prompt-projects"
 
 
 def error(msg: str) -> None:
@@ -37,7 +29,7 @@ def read_csv() -> dict[str, list[str]]:
                 if row and not row[0].startswith("#"):
                     data[row[0]] = [row[1], row[2]]
     except FileNotFoundError:
-        error(f"sink projects list ({datafile}) not found.")
+        error(f"projects list ({datafile}) not found.")
 
     data = dict(sorted(data.items(), key=lambda item: item[1]))
     return data
@@ -80,7 +72,7 @@ def add_line(name: str, project_root: Path, color: str) -> None:
             projects[project] = [path, color]
             edit = True
     if not edit:
-        projects[name] = [str(project_root), color]
+        projects[name] = [str(project_root.absolute()), color]
     write_csv(projects)
 
 
@@ -244,7 +236,7 @@ def cd(project: str) -> None:
 #     "project-root",
 #     type=click.Path(exists=True, file_okay=False, dir_okay=True, resolve_path=True),
 # )
-@click.argument("color", type=COLOR_TYPE, required=False)
+# @click.argument("color", type=COLOR_TYPE, required=False)
 def add(name: str, project_root: Path, color: str) -> None:
     r"""Add a project entry to the config file.
 
@@ -266,7 +258,7 @@ def remove(name: str) -> None:
 
     NAME must be the full name of the project.
     """
-    datafile = os.path.expanduser("~/.sink-projects")
+    datafile = os.path.expanduser(CONFIG_FILE)
     with open(datafile, "r") as f:
         contents = f.readlines()
 

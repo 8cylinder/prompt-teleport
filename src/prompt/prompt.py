@@ -11,22 +11,7 @@ from dataclasses import dataclass, fields
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any
-
-try:
-    import click
-except ImportError:
-    print("Click not installed.")
-
-
-__version__ = "2.1.0"
-
-
-# class Click:
-#     def style(self, msg, fg, bg, bold, underline, italic):
-#         print(msg)
-#
-#
-# click = Click()
+import click
 
 
 class Segment(Enum):
@@ -452,7 +437,7 @@ class Chunks:
     def get_sink_project() -> tuple[str, str, str]:
         """Get the project name and color from ~/.sink-projects"""
         # TODO: optimize this method
-        project_conf = Path("~/.sink-projects").expanduser()
+        project_conf = Path("~/.prompt-projects").expanduser()
         cur = Path(os.path.curdir).absolute()
         project_name = ""  # cur.name
         project_bg = "blue"
@@ -643,7 +628,7 @@ class Chunks:
         return self._theme(Segment.DOLLAR, (dollar_sign,), no_brackets=True)
 
 
-def set_item2_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
+def set_iterm2_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
     r"""Set the tab title.
 
     Make sure that:
@@ -696,92 +681,39 @@ def set_kitty_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
     subprocess.call(color_cmd)
 
 
-def prompt_help() -> str:
-    import textwrap
+def ps1_prompt() -> None:
+    c = Chunks()
+    right_segments = left_segments = last_segments = []
+    try:
+        left_segments = [
+            Segment.POETRY,
+            Segment.PIPENV,
+            Segment.SINK,
+            Segment.BRANCH,
+            Segment.USER,
+            Segment.VENV,
+            Segment.NIX,
+            Segment.SSH,
+            Segment.PATH,
+            Segment.FILLER,
+        ]
+        right_segments = [
+            Segment.TIME,
+        ]
+        last_segments = [
+            Segment.DOLLAR,
+        ]
+    except AttributeError as e:
+        error(e, exit=True)
 
-    help_text = """
-    Add this to your .bashrc or .bash_profile:
-    
-    # load the bash prompt source
-    function _prompt_command() {
-        export PS1="$($HOME/bin/bashrc_prompt.py)"
-    }
-    export PROMPT_COMMAND=_prompt_command
-    
-    Find some long dirs for testing:
-    find -type d | awk '{ print length, $0 }' | sort -n -s | cut -d" " -f2- | tail -n 10"""
-
-    formated = textwrap.dedent(help_text)
-    formated = textwrap.indent(formated, "  ")
-    return formated
-
-
-def ps1_prompt(info: bool = False) -> None:
-    if info:
-        print()
-        click.secho("Info", fg="bright_yellow", bold=True)
-        print(prompt_help())
-        print()
-        click.secho("Themes", fg="bright_yellow", bold=True)
-        for theme in themes:
-            print()
-            click.secho(f"  {theme}", fg="bright_yellow")
-            for k, v in themes[theme].items():
-                if not isinstance(k, Segment):
-                    continue
-                colored = click.style(
-                    str(k).ljust(16),
-                    fg=v.get("fg", ""),
-                    bg=v.get("bg", ""),
-                    bold=v.get("bold", False),
-                    italic=v.get("italic", False),
-                    underline=v.get("underline", False),
-                )
-                print(f"    {colored}", v)
-        print()
-        this = os.path.basename(__file__)
-        click.secho(f"{this} version: {__version__}", fg="bright_yellow")
-        click.secho(__file__, fg="bright_yellow")
-    else:
-        c = Chunks()
-        right_segments = left_segments = last_segments = []
-        try:
-            left_segments = [
-                Segment.POETRY,
-                Segment.PIPENV,
-                Segment.SINK,
-                Segment.BRANCH,
-                Segment.USER,
-                Segment.VENV,
-                Segment.NIX,
-                Segment.SSH,
-                Segment.PATH,
-                Segment.FILLER,
-            ]
-            right_segments = [
-                Segment.TIME,
-            ]
-            last_segments = [
-                Segment.DOLLAR,
-            ]
-        except AttributeError as e:
-            error(e, exit=True)
-
-        # the right segments need to be build first so their sizes are
-        # added to the Chunks.segment_lengths list before the filler
-        # segment calculates the leftover space.
-        right = " ".join(filter(None, [c.get_chunk(i) for i in right_segments]))
-        left = " ".join(filter(None, [c.get_chunk(i) for i in left_segments]))
-        last = " ".join(filter(None, [c.get_chunk(i) for i in last_segments]))
-        # invisible = c.get_chunk(Segment.INVISIBLE)
-        # line = f"{invisible}{left} {right}{last}"
-        line = f"{left} {right}{last}"
-        print()
-        print(line)
-
-
-# if __name__ == "__main__":
-#     if len(sys.argv) > 1:
-#         main(True)
-#     else:
-#         main()
+    # the right segments need to be build first so their sizes are
+    # added to the Chunks.segment_lengths list before the filler
+    # segment calculates the leftover space.
+    right = " ".join(filter(None, [c.get_chunk(i) for i in right_segments]))
+    left = " ".join(filter(None, [c.get_chunk(i) for i in left_segments]))
+    last = " ".join(filter(None, [c.get_chunk(i) for i in last_segments]))
+    # invisible = c.get_chunk(Segment.INVISIBLE)
+    # line = f"{invisible}{left} {right}{last}"
+    line = f"{left} {right}{last}"
+    print()
+    print(line)
