@@ -55,7 +55,7 @@ export PROMPT_COMMAND=_prompt_command
 
 ### UI
 
-```
+``` bash
 prompt ps1
 prompt themes
 prompt project cd [DIR-NAME]
