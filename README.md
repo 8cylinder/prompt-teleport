@@ -62,3 +62,12 @@ prompt project cd [DIR-NAME]
 prompt project add NAME PROJECT-ROOT [COLOUR]
 prompt project edit
 ```
+
+
+### Edit
+
+``` bash
+sudo apt-get install build-essential libgl1-mesa-dev
+sudo apt install libcairo2-dev libxt-dev libgirepository1.0-dev
+uv add pycairo PyGObject
+```

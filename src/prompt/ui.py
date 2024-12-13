@@ -11,6 +11,8 @@ from .prompt import Segment
 from .projects import add as project_add, COLOR_TYPE
 from .projects import cd as project_cd
 
+from .edit import test
+
 __version__ = importlib.metadata.version("prompt")
 
 
@@ -150,4 +152,4 @@ def add(name: str, project_root: Path, color: str) -> None:
 @project.command()
 def edit() -> None:
     """Edit the project list."""
-    print("TBD")
+    test()

@@ -9,6 +9,12 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "click>=8.1.7",
+    "nicegui>=2.8.1",
+    "pycairo>=1.27.0",
+    "pygobject>=3.50.0",
+    "pyqt5>=5.15.11",
+    "pyqtwebengine>=5.15.7",
+    "pywebview[qt]>=5.3.2",
 ]
 
 [project.scripts]
