@@ -11,7 +11,7 @@ from .prompt import Segment
 from .projects import add as project_add, COLOR_TYPE
 from .projects import cd as project_cd
 
-from .edit import test
+# from .edit import test  # noqa: F401
 
 __version__ = importlib.metadata.version("prompt")
 
@@ -98,12 +98,10 @@ def project() -> None:
     {
         eval "$(prompt project cd "$1")"
     }
-
-    And for completion add this:
-
-    \b
+    # completion for cdd
     function _cdd
     {
+        # the sed removes blank lines and lines starting with a comment (#)
         local cur=${COMP_WORDS[COMP_CWORD]}
         COMPREPLY=(
             $(compgen -W \\
@@ -149,7 +147,7 @@ def add(name: str, project_root: Path, color: str) -> None:
     project_add(name, project_root, color)
 
 
-@project.command()
-def edit() -> None:
-    """Edit the project list."""
-    test()
+# @project.command()
+# def edit() -> None:
+#     """Edit the project list."""
+#     test()

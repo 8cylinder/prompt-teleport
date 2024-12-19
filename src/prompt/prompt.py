@@ -111,8 +111,8 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
 
 def error(message: str | Exception, exit: bool = True) -> None:
     print(f"Error: {message}")
-    print(">")
     if exit:
+        print("> ")
         sys.exit(1)
 
 
@@ -457,7 +457,7 @@ class Chunks:
                         project_fg = colorscale(project_bg, 3)
                         break
         except FileNotFoundError:
-            error("No sink-projects file found.", exit=False)
+            error(f"No projects file found: {project_conf}", exit=False)
 
         # if os.environ.get("KITTY_PID"):
         #     set_kitty_tabs(project_name, project_bg, project_fg)

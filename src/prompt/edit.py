@@ -23,8 +23,8 @@ def test() -> None:
     projects = read_csv()
     # print(projects)
     project = Chunks.get_sink_project()
-    print(project)
-    return
+    # print(project)
+    # return
 
     dark = ui.dark_mode(True)
     # dark.enable
@@ -52,8 +52,8 @@ def test() -> None:
     #     ui.link(url, target=url)
 
     # ui.run()
-    # native=True
-    native = False
+    native = True
+    # native = False
     # show = True
     show = False
     ui.run(native=native, show=show, reload=False)
