@@ -1,4 +1,4 @@
-import click
+import click  # noqa: F401
 from typing import Any
 from pathlib import Path
 import importlib.metadata
