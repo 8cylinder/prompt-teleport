@@ -7,11 +7,13 @@ import random
 import socket
 import subprocess
 import sys
+import json
 from dataclasses import dataclass, fields
 from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 import click
+from pprint import pprint as pp  # noqa: F401
 
 
 class Segment(Enum):
@@ -83,6 +85,7 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.POETRY: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
         Segment.NIX: {"fg": "white", "blue": "88"},
         Segment.VENV: {"fg": (239, 255, 0), "bg": (90, 95, 2)},
+        Segment.DDEV: {"fg": (93, 159, 222)},
         Segment.FILLER: {"fg": (25, 61, 85)},
         # dollar styles are ignored for now.
         Segment.DOLLAR: {"fg": (239, 41, 41)},
@@ -114,6 +117,28 @@ def error(message: str | Exception, exit: bool = True) -> None:
     if exit:
         print("> ")
         sys.exit(1)
+
+
+def find_dir_upwards(
+    start_path: Path, target_dir: str, stop_at: str = "~"
+) -> Path | None:
+    """
+    Walk up the directory tree from start_path looking for target_dir.
+
+    If stop_at is reached, return None.  Generally this is used to prevent
+    scanning the home dir.
+    """
+    current_path = start_path.resolve()
+
+    while current_path != current_path.parent:
+        if stop_at and current_path == Path(stop_at).expanduser():
+            return None
+        potential_target = current_path / target_dir
+        if potential_target.is_dir():
+            return potential_target
+        current_path = current_path.parent
+
+    return None
 
 
 def clamp(val: int | float, minimum: int = 0, maximum: int = 255) -> int | float:
@@ -175,20 +200,6 @@ def colorscale(hexstr: str, scalefactor: float) -> str:
     b = int(clamp(b * scalefactor))
 
     return "#%02x%02x%02x" % (r, g, b)
-
-
-def find_sink_yaml(dirname: str) -> str | None:
-    project_file = "sink.yaml"
-    try:
-        names = os.listdir(dirname)
-    except PermissionError:
-        return None
-    if project_file in names:
-        return os.path.realpath(os.path.join(dirname, project_file))
-    if dirname == "/":
-        return None
-    parent = os.path.realpath(os.path.join(dirname, ".."))
-    return find_sink_yaml(parent)
 
 
 def urlize(text: str, url: str) -> str:
@@ -315,7 +326,7 @@ class Chunks:
 
         # colorize the sink chunk using the colors defined in .prompt-projects.
         if segment == Segment.SINK:
-            project_name, project_bg, project_fg = self.get_sink_project()
+            project_name, project_bg, project_fg = self.get_project_info()
 
             if not project_name:
                 return ""  # not a project
@@ -437,7 +448,7 @@ class Chunks:
         return complete
 
     @staticmethod
-    def get_sink_project() -> tuple[str, str, str]:
+    def get_project_info() -> tuple[str, str, str]:
         """Get the project name and color from ~/.sink-projects"""
         # TODO: optimize this method
         project_conf = Path("~/.prompt-projects").expanduser()
@@ -617,11 +628,21 @@ class Chunks:
             pipenv = self.apply_chunk_theme(Segment.PIPENV, (pipenv,))
         return pipenv
 
-    # def _chunk_ddev(self) -> str:
-    #     ddev = os.getenv("DDEV_SITENAME", "")
-    #     if ddev:
-    #         ddev = self._theme(Segment.DDEV, (ddev,))
-    #     return ddev
+    def _chunk_ddev(self) -> str:
+        ddev = ""
+        if ddev_dir := find_dir_upwards(Path(os.path.curdir), ".ddev", stop_at="~"):
+            output = subprocess.run(
+                ["ddev", "describe", "--skip-hooks", "--json-output"],
+                universal_newlines=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+            info = json.loads(output.stdout)["raw"]
+            clean = True
+            color = "green" if info["status"] == "running" else "red"
+            extra = (Ellipses.large_dot, {"fg": color})
+            ddev = self.apply_chunk_theme(Segment.DDEV, ("DDev",), extra=extra)
+        return ddev
 
     def _chunk_filler(self) -> str:
         # char = self.theme.get("filler_char", Ellipses.hr)  # Can be any number if chars
@@ -698,6 +719,7 @@ def ps1_prompt() -> None:
             Segment.POETRY,
             Segment.PIPENV,
             Segment.SINK,
+            Segment.DDEV,
             Segment.BRANCH,
             Segment.USER,
             Segment.VENV,
