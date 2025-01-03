@@ -270,7 +270,7 @@ class Chunks:
         max_len = (int(self.columns)) - non_path_length - len(extra)
         return max_len
 
-    def _theme(
+    def apply_chunk_theme(
         self,
         segment: Segment,
         chunks: tuple[str, ...],
@@ -289,7 +289,9 @@ class Chunks:
 
         Args:
             segment (Segment): The segment to be themed.
-            chunks (tuple[str, ...]): The chunks of text to be styled.
+            chunks (tuple[str, ...]): The chunks of text to be styled.  The only reason
+                this is a tuple is that the PATH segment might be split in two to handle
+                the split path if it is too long to fit in the terminal.
             no_brackets (bool, optional): If True, brackets around the chunks will be
                 omitted. Defaults to False.
             split_char (str, optional): A character to split the chunks. Defaults to "".
@@ -311,7 +313,7 @@ class Chunks:
 
         hide_brackets = True
 
-        # hasattr(Segment, "SINK") and segment == Segment.SINK:
+        # colorize the sink chunk using the colors defined in .prompt-projects.
         if segment == Segment.SINK:
             project_name, project_bg, project_fg = self.get_sink_project()
 
@@ -337,6 +339,7 @@ class Chunks:
                 no_brackets=no_brackets,
                 hide_brackets=hide_brackets,
             )
+        # colorize all the non sink chunks using the theme colors.
         else:
             bg = theme.get("bg", "")
             template = "[{}]"
@@ -459,8 +462,8 @@ class Chunks:
         except FileNotFoundError:
             error(f"No projects file found: {project_conf}", exit=False)
 
-        # if os.environ.get("KITTY_PID"):
-        #     set_kitty_tabs(project_name, project_bg, project_fg)
+        if os.environ.get("KITTY_PID"):
+            set_kitty_tabs(project_name, project_bg, project_fg)
         # elif os.environ.get("ITERM_SESSION_ID"):
         #     set_item2_tabs(project_name, project_bg, project_fg)
 
@@ -492,7 +495,9 @@ class Chunks:
 
         if max_len > len(path):
             if len(path) != 1:
-                pretty_path = urlize(self._theme(Segment.PATH, (path,)), link_path)
+                pretty_path = urlize(
+                    self.apply_chunk_theme(Segment.PATH, (path,)), link_path
+                )
             else:
                 self._add_length(path)
                 pretty_path = path  # don't urlize a single character path, ie: ~ or / (it looks bad)
@@ -501,7 +506,8 @@ class Chunks:
             parts = snip(path, max_len, sep=self.snip_char, position=0.25)
 
             pretty_path = urlize(
-                self._theme(Segment.PATH, parts, split_char=self.snip_char), link_path
+                self.apply_chunk_theme(Segment.PATH, parts, split_char=self.snip_char),
+                link_path,
             )
             # pretty_path = urlize(self._theme(Segment.PATH, snip_path), link_path)
 
@@ -514,15 +520,17 @@ class Chunks:
         # Use this instead:
         cur_user = os.environ["USER"]
         hostname = socket.gethostname()
-        return self._theme(Segment.USER, ("{}@{}".format(cur_user, hostname),))
+        return self.apply_chunk_theme(
+            Segment.USER, ("{}@{}".format(cur_user, hostname),)
+        )
 
     def _chunk_sink(self) -> str:
-        return self._theme(Segment.SINK, ("",), no_brackets=False)
+        return self.apply_chunk_theme(Segment.SINK, ("",), no_brackets=False)
 
     def _chunk_time(self) -> str:
         now = datetime.datetime.now()
         formated = now.strftime("%H:%M")
-        return self._theme(Segment.TIME, (formated,))
+        return self.apply_chunk_theme(Segment.TIME, (formated,))
 
     def _chunk_branch(self) -> str:
         try:
@@ -555,7 +563,7 @@ class Chunks:
         clean = len(lines[1:]) == 0
         color = "green" if clean else "red"
         extra = (Ellipses.large_dot, {"fg": color})
-        branch = self._theme(Segment.BRANCH, (branch,), extra=extra)
+        branch = self.apply_chunk_theme(Segment.BRANCH, (branch,), extra=extra)
 
         return branch
 
@@ -581,32 +589,32 @@ class Chunks:
         chunk = ""
         if venv and not poetry:
             venv = os.path.basename(venv)
-            venv = self._theme(Segment.VENV, (venv,))
+            venv = self.apply_chunk_theme(Segment.VENV, (venv,))
             chunk = venv
         return chunk
 
     def _chunk_poetry(self) -> str:
         poetry = os.getenv("POETRY_ACTIVE", "")
         if poetry:
-            poetry = self._theme(Segment.POETRY, ("Poetry",))
+            poetry = self.apply_chunk_theme(Segment.POETRY, ("Poetry",))
         return poetry
 
     def _chunk_nix(self) -> str:
         nix = os.getenv("NIX_STORE", "")
         if nix:
-            nix = self._theme(Segment.NIX, ("Nix",))
+            nix = self.apply_chunk_theme(Segment.NIX, ("Nix",))
         return nix
 
     def _chunk_ssh(self) -> str:
         ssh_envoment = os.getenv("SSH_CLIENT", "")
         if ssh_envoment:
-            ssh_envoment = self._theme(Segment.SSH, ("ssh",))
+            ssh_envoment = self.apply_chunk_theme(Segment.SSH, ("ssh",))
         return ssh_envoment
 
     def _chunk_pipenv(self) -> str:
         pipenv = os.getenv("PIPENV_ACTIVE", "")
         if pipenv:
-            pipenv = self._theme(Segment.PIPENV, (pipenv,))
+            pipenv = self.apply_chunk_theme(Segment.PIPENV, (pipenv,))
         return pipenv
 
     # def _chunk_ddev(self) -> str:
@@ -621,11 +629,11 @@ class Chunks:
         segment = self.filler_char * count
         if not segment:
             return ""
-        return self._theme(Segment.FILLER, (segment,))
+        return self.apply_chunk_theme(Segment.FILLER, (segment,))
 
     def _chunk_dollar(self) -> str:
         dollar_sign = "\n❖ "
-        return self._theme(Segment.DOLLAR, (dollar_sign,), no_brackets=True)
+        return self.apply_chunk_theme(Segment.DOLLAR, (dollar_sign,), no_brackets=True)
 
 
 def set_iterm2_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
@@ -656,25 +664,26 @@ def set_iterm2_tabs(project_name: str, project_bg: str, project_fg: str) -> None
 
 def set_kitty_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
     """Set the kitty terminal tab colors and title"""
-
-    # default no project tab colors
     base_color = "#ffffff"
-    all_colors = [
-        f"active_fg={base_color}",
-        "active_bg=" + colorscale(base_color, 0.3),
-        "inactive_fg=" + colorscale(base_color, 0.8),
-        "inactive_bg=" + colorscale(base_color, 0.0),
-    ]
     if project_name:
+        tab_title = project_name
         colors = {
             "active_fg": colorscale(project_fg, 1.0),
             "active_bg": colorscale(project_bg, 1.0),
-            "inactive_fg": colorscale(project_fg, 1.0),
+            "inactive_fg": base_color,  # colorscale(project_fg, 1.0),
             "inactive_bg": colorscale(project_bg, 0.0),
         }
-        all_colors = [f"{k}={v}" for k, v in colors.items()]
+    else:
+        tab_title = Path().absolute().name
+        colors = {
+            "active_fg": base_color,
+            "active_bg": colorscale(base_color, 0.3),
+            "inactive_fg": colorscale(base_color, 0.6),
+            "inactive_bg": colorscale(base_color, 0.0),
+        }
+    all_colors = [f"{k}={v}" for k, v in colors.items()]
     color_cmd = ["kitten", "@", "set-tab-color"] + all_colors
-    title_cmd = ["kitten", "@", "set-tab-title", project_name]
+    title_cmd = ["kitten", "@", "set-tab-title", tab_title]
     # use the blocking `call` instead of `popen` which doesn't wait for
     # the command to finish and that causes the terminal to get messed up.
     subprocess.call(title_cmd)
