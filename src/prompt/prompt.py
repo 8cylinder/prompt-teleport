@@ -41,7 +41,8 @@ class Ellipses:
     bar: str = "|"
     bars: str = "|||"
     large_square: str = "▉"  # "\u2589"
-    small_square: str = "▮"  # "\u25ae"
+    small_square: str = "▮"  # "\u25ae"  ◼
+    upper_left_square: str = "▘"
     large_dot: str = "⏺"  # "\u25cf"
     medium_dot: str = "•"
     small_dot: str = "·"
@@ -113,9 +114,9 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
 
 
 def error(message: str | Exception, exit: bool = True) -> None:
-    print(f"Error: {message}")
+    click.echo(f"Error: {message}")
     if exit:
-        print("> ")
+        click.echo("> ")
         sys.exit(1)
 
 
@@ -475,8 +476,8 @@ class Chunks:
 
         if os.environ.get("KITTY_PID"):
             set_kitty_tabs(project_name, project_bg, project_fg)
-        # elif os.environ.get("ITERM_SESSION_ID"):
-        #     set_item2_tabs(project_name, project_bg, project_fg)
+        elif os.environ.get("ITERM_SESSION_ID"):
+            set_iterm2_tabs(project_name, project_bg, project_fg)
 
         return (project_name, project_bg, project_fg)
 
@@ -640,7 +641,7 @@ class Chunks:
             info = json.loads(output.stdout)["raw"]
             clean = True
             color = "green" if info["status"] == "running" else "red"
-            extra = (Ellipses.large_dot, {"fg": color})
+            extra = (Ellipses.upper_left_square, {"fg": color})
             ddev = self.apply_chunk_theme(Segment.DDEV, ("DDev",), extra=extra)
         return ddev
 
@@ -669,18 +670,17 @@ def set_iterm2_tabs(project_name: str, project_bg: str, project_fg: str) -> None
     Test:
     echo -ne "\e]1;this is the title\a"
     """
-    # print(r"\e]1;this is the title\a")
     template = r"\e]1;{}\a"
+    rgb_template = "\033]6;1;bg;{color};brightness;{value}\a"
     if not project_name:
-        project_name = os.path.abspath(os.path.curdir)
-        print(template.format(project_name))
+        project_name = os.path.basename(os.getcwd())
+        click.echo(template.format(project_name), nl=False)
+        click.echo("\033]6;1;bg;*;default\a", nl=False)  # reset tab to default
     else:
-        print(template.format(project_name))
-    # project_name = project_name[10:]
-    # print(project_fg, project_bg)
-    # project_name = "" # "\033]6;1;bg;red;brightness;255\a"
-    # cmd = ["echo", "-ne", rf"\e]1;{project_name}\a"]
-    # subprocess.Popen(cmd)
+        click.echo(template.format(project_name), nl=False)
+        rgb = hex_to_rgb(project_bg)
+        for color, value in zip(("red", "green", "blue"), rgb):
+            click.echo(rgb_template.format(color=color, value=value), nl=False)
 
 
 def set_kitty_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
