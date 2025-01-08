@@ -633,7 +633,7 @@ class Chunks:
         ddev = ""
         if ddev_dir := find_dir_upwards(Path(os.path.curdir), ".ddev", stop_at="~"):
             output = subprocess.run(
-                ["ddev", "describe", "--skip-hooks", "--json-output"],
+                ["ddev", "describe", "--json-output"],
                 universal_newlines=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
