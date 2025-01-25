@@ -116,7 +116,7 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
 
 
 def error(message: str | Exception, exit: bool = True) -> None:
-    click.echo(f"Error: {message}")
+    click.secho(f"\n\nError: {message}", fg="red")
     if exit:
         click.echo("> ")
         sys.exit(1)
@@ -649,7 +649,11 @@ class Chunks:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             )
-            info = json.loads(output.stdout)["raw"]
+            try:
+                info = json.loads(output.stdout)["raw"]
+            except json.JSONDecodeError as e:
+                error(e, exit=False)
+                return "Error"
             clean = True
             color = "green" if info["status"] == "running" else "red"
             extra = (Ellipses.large_dot, {"fg": color})
