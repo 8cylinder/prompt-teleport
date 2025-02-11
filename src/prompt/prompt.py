@@ -598,10 +598,10 @@ class Chunks:
         # return self._theme(Segment.VIRTUAL, virt)
 
     def _chunk_orb(self) -> str:
-        ostype = os.getenv("OSTYPE", "")
+        home = os.getenv("HOME", "")
         orb_path = Path("/Users")
         orb = "ORB"
-        if orb_path.exists() and ostype == "linux-gnu":
+        if orb_path.exists() and '/home/sm' in home:
             return self.apply_chunk_theme(Segment.ORB, (orb,))
         else:
             return ""
