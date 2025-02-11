@@ -16,6 +16,11 @@ from .projects import cd as project_cd
 __version__ = importlib.metadata.version("prompt")
 
 
+def insert_time(line: str, time: float) -> str:
+    spline = line.splitlines()
+    return "\n".join([spline[0], f"{time:.6f} seconds", spline[1]])
+
+
 class NaturalOrderGroup(click.Group):
     """Display commands sorted by order in file
 
@@ -59,7 +64,18 @@ def prompt() -> None:
 @prompt.command()
 def ps1() -> None:
     """Output a PS1 prompt for bash."""
-    ps1_prompt()
+    print()
+    if time_function := False:
+        from timeit import default_timer as timer
+
+        start = timer()
+        line = ps1_prompt()
+        end = timer()
+        time = end - start
+        line = insert_time(line, time)
+        print(line)
+    else:
+        print(ps1_prompt())
 
 
 @prompt.command()

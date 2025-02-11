@@ -32,6 +32,7 @@ class Segment(Enum):
     DOLLAR = auto()
     DDEV = auto()
     INVISIBLE = auto()
+    ORB = auto()
 
 
 @dataclass
@@ -83,10 +84,11 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.PIPENV: {"fg": (70, 204, 64), "bg": (36, 135, 75)},
         Segment.BRANCH: {"fg": (93, 159, 222)},
         Segment.VIRTUAL: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
+        Segment.ORB: {"fg": (204, 0, 0), "bg": (66, 12, 5), "bold": True},
         Segment.POETRY: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
         Segment.NIX: {"fg": "white", "blue": "88"},
         Segment.VENV: {"fg": (239, 255, 0), "bg": (90, 95, 2)},
-        Segment.DDEV: {"fg": (93, 159, 222)},
+        Segment.DDEV: {"fg": (208, 127, 255)},
         Segment.FILLER: {"fg": (25, 61, 85)},
         # dollar styles are ignored for now.
         Segment.DOLLAR: {"fg": (239, 41, 41)},
@@ -595,6 +597,15 @@ class Chunks:
         #     virt = "vbox"
         # return self._theme(Segment.VIRTUAL, virt)
 
+    def _chunk_orb(self) -> str:
+        ostype = os.getenv("OSTYPE", "")
+        orb_path = Path("/Users")
+        orb = "ORB"
+        if orb_path.exists() and ostype == "linux-gnu":
+            return self.apply_chunk_theme(Segment.ORB, (orb,))
+        else:
+            return ""
+
     def _chunk_venv(self) -> str:
         venv = os.getenv("VIRTUAL_ENV", "")
         poetry = os.getenv("POETRY_ACTIVE", "")
@@ -641,7 +652,7 @@ class Chunks:
             info = json.loads(output.stdout)["raw"]
             clean = True
             color = "green" if info["status"] == "running" else "red"
-            extra = (Ellipses.upper_left_square, {"fg": color})
+            extra = (Ellipses.large_dot, {"fg": color})
             ddev = self.apply_chunk_theme(Segment.DDEV, ("DDev",), extra=extra)
         return ddev
 
@@ -711,15 +722,16 @@ def set_kitty_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
     subprocess.call(color_cmd)
 
 
-def ps1_prompt() -> None:
+def ps1_prompt() -> str:
     c = Chunks()
     right_segments = left_segments = last_segments = []
     try:
         left_segments = [
+            Segment.ORB,
             Segment.POETRY,
             Segment.PIPENV,
             Segment.SINK,
-            Segment.DDEV,
+            # Segment.DDEV,  # This is slow
             Segment.BRANCH,
             Segment.USER,
             Segment.VENV,
@@ -740,11 +752,12 @@ def ps1_prompt() -> None:
     # the right segments need to be build first so their sizes are
     # added to the Chunks.segment_lengths list before the filler
     # segment calculates the leftover space.
-    right = " ".join(filter(None, [c.get_chunk(i) for i in right_segments]))
-    left = " ".join(filter(None, [c.get_chunk(i) for i in left_segments]))
-    last = " ".join(filter(None, [c.get_chunk(i) for i in last_segments]))
+    right = " ".join(filter(None, [c.get_chunk(i) for i in right_segments if i]))
+    left = " ".join(filter(None, [c.get_chunk(i) for i in left_segments if i]))
+    last = " ".join(filter(None, [c.get_chunk(i) for i in last_segments if i]))
     # invisible = c.get_chunk(Segment.INVISIBLE)
     # line = f"{invisible}{left} {right}{last}"
     line = f"{left} {right}{last}"
-    print()
-    print(line)
+    return line
+    # print()
+    # print(line)
