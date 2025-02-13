@@ -601,7 +601,7 @@ class Chunks:
         home = os.getenv("HOME", "")
         orb_path = Path("/Users")
         orb = "ORB"
-        if orb_path.exists() and '/home/sm' in home:
+        if orb_path.exists() and "/home/sm" in home:
             return self.apply_chunk_theme(Segment.ORB, (orb,))
         else:
             return ""
@@ -706,16 +706,16 @@ def set_kitty_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
         colors = {
             "active_fg": colorscale(project_fg, 1.0),
             "active_bg": colorscale(project_bg, 1.0),
-            "inactive_fg": base_color,  # colorscale(project_fg, 1.0),
-            "inactive_bg": colorscale(project_bg, 0.0),
+            "inactive_fg": colorscale(project_fg, 0.5),
+            "inactive_bg": colorscale(project_bg, 0.5),
         }
     else:
-        tab_title = Path().absolute().name
+        tab_title = '/'.join(Path().absolute().parts[-2:])
         colors = {
             "active_fg": base_color,
             "active_bg": colorscale(base_color, 0.3),
-            "inactive_fg": colorscale(base_color, 0.6),
-            "inactive_bg": colorscale(base_color, 0.0),
+            "inactive_fg": colorscale(base_color, 0.4),
+            "inactive_bg": colorscale(base_color, 0.15),
         }
     all_colors = [f"{k}={v}" for k, v in colors.items()]
     color_cmd = ["kitten", "@", "set-tab-color"] + all_colors
