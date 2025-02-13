@@ -700,7 +700,6 @@ def set_iterm2_tabs(project_name: str, project_bg: str, project_fg: str) -> None
 
 def set_kitty_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
     """Set the kitty terminal tab colors and title"""
-    base_color = "#ffffff"
     if project_name:
         tab_title = project_name
         colors = {
@@ -710,7 +709,8 @@ def set_kitty_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
             "inactive_bg": colorscale(project_bg, 0.5),
         }
     else:
-        tab_title = '/'.join(Path().absolute().parts[-2:])
+        base_color = "#ffffff"
+        tab_title = "/".join(Path().absolute().parts[-2:])
         colors = {
             "active_fg": base_color,
             "active_bg": colorscale(base_color, 0.3),
