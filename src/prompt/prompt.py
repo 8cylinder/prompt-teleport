@@ -142,6 +142,7 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.PIPENV: {"fg": (70, 204, 64), "bg": (36, 135, 75)},
         Segment.BRANCH: {"fg": (252, 175, 62)},
         Segment.VIRTUAL: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
+        Segment.ORB: {"fg": (204, 0, 0), "bg": (66, 12, 5), "bold": True},        
         Segment.POETRY: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
         Segment.NIX: {"fg": "white", "blue": "88"},
         Segment.VENV: {"fg": (239, 255, 0), "bg": (90, 95, 2)},
@@ -636,7 +637,7 @@ class Chunks:
 
     def _chunk_orb(self) -> str:
         if is_orb():
-            return self.apply_chunk_theme(Segment.ORB, ("ORB",))
+            return self.apply_chunk_theme(Segment.ORB, (Ellipses.large_dot,))
         return ""
 
     def _chunk_venv(self) -> str:
