@@ -154,7 +154,7 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
 
 
 def error(message: str | Exception, exit: bool = True) -> None:
-    click.echo(f"Error: {message}")
+    click.secho(f"\n\nError: {message}", fg="red")
     if exit:
         click.echo("> ")
         sys.exit(1)
@@ -682,7 +682,11 @@ class Chunks:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
             )
-            info = json.loads(output.stdout)["raw"]
+            try:
+                info = json.loads(output.stdout)["raw"]
+            except json.JSONDecodeError as e:
+                error(e, exit=False)
+                return "Error"
             clean = True
             color = "green" if info["status"] == "running" else "red"
             extra = (Ellipses.large_dot, {"fg": color})
@@ -729,22 +733,22 @@ def set_iterm2_tabs(project_name: str, project_bg: str, project_fg: str) -> None
 
 def set_kitty_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
     """Set the kitty terminal tab colors and title"""
-    base_color = "#ffffff"
     if project_name:
         tab_title = project_name
         colors = {
             "active_fg": colorscale(project_fg, 1.0),
             "active_bg": colorscale(project_bg, 1.0),
-            "inactive_fg": base_color,  # colorscale(project_fg, 1.0),
-            "inactive_bg": colorscale(project_bg, 0.0),
+            "inactive_fg": colorscale(project_fg, 0.5),
+            "inactive_bg": colorscale(project_bg, 0.5),
         }
     else:
-        tab_title = Path().absolute().name
+        base_color = "#ffffff"
+        tab_title = "/".join(Path().absolute().parts[-2:])
         colors = {
             "active_fg": base_color,
             "active_bg": colorscale(base_color, 0.3),
-            "inactive_fg": colorscale(base_color, 0.6),
-            "inactive_bg": colorscale(base_color, 0.0),
+            "inactive_fg": colorscale(base_color, 0.4),
+            "inactive_bg": colorscale(base_color, 0.15),
         }
     all_colors = [f"{k}={v}" for k, v in colors.items()]
     color_cmd = ["kitten", "@", "set-tab-color"] + all_colors
