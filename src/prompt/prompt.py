@@ -35,6 +35,44 @@ class Segment(Enum):
     ORB = auto()
 
 
+class Enviroment(Enum):
+    LOCAL = auto()
+    SSH = auto()
+    ORB = auto()
+    MULTIPASS = auto()
+    DOCKER = auto()
+
+
+def get_theme() -> dict[Segment | dict[str, dict[str, Any]]]:
+    remote = "Remote"
+    local = "Local"
+    environment = get_environment()
+    if environment == Enviroment.SSH:
+        return themes[remote]
+    elif environment == Enviroment.ORB:
+        return themes[remote]
+    else:
+        return themes[local]
+
+
+def get_environment() -> Enviroment:
+    location = Enviroment.LOCAL
+
+    if os.environ.get("SSH_CLIENT"):
+        location = Enviroment.SSH
+    elif is_orb():
+        location = Enviroment.ORB
+    return location
+
+
+def is_orb() -> bool:
+    home = os.getenv("HOME", "")
+    orb_path = Path("/Users")
+    if orb_path.exists() and "/home/sm" in home:
+        return True
+    return False
+
+
 @dataclass
 class Ellipses:
     unicode_ellipsis: str = "…"  # "\u2026"
@@ -248,8 +286,7 @@ class Chunks:
     IS_SSH: str = os.environ.get("SSH_CLIENT", "")
 
     def __init__(self) -> None:
-        ssh_location = "Remote" if self.IS_SSH else "Local"
-        self.theme = self._get_theme(ssh_location)
+        self.theme = get_theme()
         self.segment_lengths: list[int] = []
         _, self.columns = os.popen("stty size", "r").read().split()
         try:
@@ -598,13 +635,9 @@ class Chunks:
         # return self._theme(Segment.VIRTUAL, virt)
 
     def _chunk_orb(self) -> str:
-        home = os.getenv("HOME", "")
-        orb_path = Path("/Users")
-        orb = "ORB"
-        if orb_path.exists() and '/home/sm' in home:
-            return self.apply_chunk_theme(Segment.ORB, (orb,))
-        else:
-            return ""
+        if is_orb():
+            return self.apply_chunk_theme(Segment.ORB, ("ORB",))
+        return ""
 
     def _chunk_venv(self) -> str:
         venv = os.getenv("VIRTUAL_ENV", "")
