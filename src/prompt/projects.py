@@ -45,17 +45,17 @@ def write_csv(odict: dict[str, list[str]]) -> None:
 
 
 def get_project_dir(projects: dict[str, list[str]]) -> str | bool:
-    pwd = os.path.realpath(os.path.curdir)
+    pwd = Path(os.path.realpath(os.path.curdir))
     for project, project_info in projects.items():
-        path = project_info[0]
+        path = Path(project_info[0])
         if pwd == path:
             # is in root of project and the user
             # probably wants to change projects
             return False
-        if pwd.startswith(path):
+        if pwd.is_relative_to(path):  #  pwd.startswith(path):
             # is in a subdir of a project and
             # the user probably want to go to root
-            return path
+            return str(path)
     return False
 
 
