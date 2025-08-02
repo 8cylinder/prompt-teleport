@@ -421,6 +421,7 @@ class Chunks:
                     split_char,
                     fg=snip_theme.get("fg", ""),
                     bg=snip_theme.get(bg, ""),
+                    no_brackets=True,
                 )
                 rendered_chunks = "".join([parts[0], fancy_char, parts[1]])
             else:
