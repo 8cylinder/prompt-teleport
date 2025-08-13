@@ -2,6 +2,7 @@
 
 import csv
 import datetime
+import hashlib
 import os
 import random
 import socket
@@ -14,6 +15,8 @@ from pathlib import Path
 from typing import Any
 import click
 from pprint import pprint as pp  # noqa: F401
+import colorsys
+from typing import Tuple
 
 
 class Segment(Enum):
@@ -162,7 +165,10 @@ def error(message: str | Exception, exit: bool = True) -> None:
 
 
 def find_dir_upwards(
-    start_path: Path, target_dir: str, stop_at: str = "~"
+    start_path: Path,
+    target_dir: str,
+    stop_at: str = "~",
+    ftype: str = "dir",
 ) -> Path | None:
     """
     Walk up the directory tree from start_path looking for target_dir.
@@ -176,7 +182,9 @@ def find_dir_upwards(
         if stop_at and current_path == Path(stop_at).expanduser():
             return None
         potential_target = current_path / target_dir
-        if potential_target.is_dir():
+        if ftype == "dir" and potential_target.is_dir():
+            return potential_target
+        elif ftype == "file" and potential_target.is_file():
             return potential_target
         current_path = current_path.parent
 
@@ -242,6 +250,38 @@ def colorscale(hexstr: str, scalefactor: float) -> str:
     b = int(clamp(b * scalefactor))
 
     return "#%02x%02x%02x" % (r, g, b)
+
+
+def adjust_hue(rgb: Tuple[int, int, int], hue_shift: float) -> Tuple[int, int, int]:
+    """Adjusts only the hue of an RGB color.
+
+    :param rgb: The original RGB tuple (0-255).
+    :param hue_shift: Amount to shift hue (0.0-1.0, where 1.0 is a full rotation).
+    :return: New RGB tuple with adjusted hue.
+    """
+    # Normalize RGB to 0-1
+    r, g, b = [x / 255.0 for x in rgb]
+    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+    h = (h + hue_shift) % 1.0
+    r2, g2, b2 = colorsys.hsv_to_rgb(h, s, v)
+    return (int(r2 * 255), int(g2 * 255), int(b2 * 255))
+
+
+def hash_to_float(s: str) -> float:
+    """Convert a hashed string to a floating-point number between 0 and 1.
+
+    Computes a floating-point number from a given string by generating an MD5 hash
+    and converting it to a float in the range 0 -> 1.
+
+    Parameters:
+    s (str): The input string to hash and convert.
+
+    Returns:
+    float: The resulting floating-point number in the range 0..1.
+    """
+    h = hashlib.md5(s.encode()).hexdigest()
+    i = int(h, 16)
+    return i / float(2**128 - 1)
 
 
 def urlize(text: str, url: str) -> str:
@@ -518,7 +558,7 @@ class Chunks:
         if os.environ.get("KITTY_PID"):
             set_kitty_tabs(project_name, project_bg, project_fg)
         elif os.environ.get("ITERM_SESSION_ID"):
-            set_iterm2_tabs(project_name, project_bg, project_fg)
+            set_iterm2_tabs(project_name, project_bg, project_fg, cur)
 
         return (project_name, project_bg, project_fg)
 
@@ -708,7 +748,30 @@ class Chunks:
         return self.apply_chunk_theme(Segment.DOLLAR, (dollar_sign,), no_brackets=True)
 
 
-def set_iterm2_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
+def adjust_rgb(
+    rgb: tuple[int, int, int], dir: Path, adjustment_amount=0.15
+) -> tuple[int, int, int]:
+    """Adjusts the RGB color based on a hash of the directory path.
+
+    The adjustment is deterministic for each directory.
+
+    :param rgb: The original RGB tuple.
+    :param dir: The directory path used as a seed.
+    :param adjustment_amount: The max adjustment factor (0 to 1).
+    :return: The adjusted RGB tuple.
+    """
+    # using the dir as a seed, convert to a float
+    amount = hash_to_float(str(dir))
+    # squeeze the amount by the adjustment_amount since amount is between 0 - 1
+    squeezed = amount * (1 - adjustment_amount)
+    adjusted = adjust_hue(rgb, squeezed)
+    print(amount, squeezed, adjusted)
+    return adjusted
+
+
+def set_iterm2_tabs(
+    project_name: str, project_bg: str, project_fg: str, current: Path
+) -> None:
     r"""Set the tab title.
 
     Make sure that:
@@ -719,18 +782,53 @@ def set_iterm2_tabs(project_name: str, project_bg: str, project_fg: str) -> None
 
     Test:
     echo -ne "\e]1;this is the title\a"
+
+    git worktree
+    ------------
+    In a worktree subdir (because the root has a `.bare` dir and the subtree
+    has a `.git` file (not dir)) adjust the project_bg using the worktree
+    branch root dir as a seed so all tabs in that tree have the same color.
     """
-    template = r"\e]1;{}\a"
+    worktree_branch_root = find_dir_upwards(current, ".git", ftype="file")
+    worktree_root = (Path() / ".bare").absolute()
+    is_worktree_root = worktree_root.exists()
+
     rgb_template = "\033]6;1;bg;{color};brightness;{value}\a"
-    if not project_name:
+
+    is_regular_dir = not project_name
+    is_worktree_subdir = worktree_branch_root and not is_worktree_root
+    is_regular_project = project_name and not is_worktree_subdir
+
+    if is_regular_dir:
         project_name = os.path.basename(os.getcwd())
+        template = r"\e]1;{}\a"
         click.echo(template.format(project_name), nl=False)
         click.echo("\033]6;1;bg;*;default\a", nl=False)  # reset tab to default
-    else:
+
+    elif is_worktree_subdir:
+        template = r"\e]1;{}\n{}\a"  # add a second row for the dir basename
+        click.echo(
+            template.format(
+                project_name,
+                current.name,
+            ),
+            nl=False,
+        )
+        rgb = hex_to_rgb(project_bg)
+        squeeze_amount = 0.6
+        rgb = adjust_rgb(rgb, worktree_branch_root.absolute(), squeeze_amount)
+        for color, value in zip(("red", "green", "blue"), rgb):
+            click.echo(rgb_template.format(color=color, value=value), nl=False)
+
+    elif is_regular_project:
+        template = r"\e]1;{}\a"
         click.echo(template.format(project_name), nl=False)
         rgb = hex_to_rgb(project_bg)
         for color, value in zip(("red", "green", "blue"), rgb):
             click.echo(rgb_template.format(color=color, value=value), nl=False)
+
+    else:
+        click.echo("This should never happen.")
 
 
 def set_kitty_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
