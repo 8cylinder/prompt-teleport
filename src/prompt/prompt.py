@@ -765,7 +765,6 @@ def adjust_rgb(
     # squeeze the amount by the adjustment_amount since amount is between 0 - 1
     squeezed = amount * (1 - adjustment_amount)
     adjusted = adjust_hue(rgb, squeezed)
-    print(amount, squeezed, adjusted)
     return adjusted
 
 
@@ -815,7 +814,7 @@ def set_iterm2_tabs(
             nl=False,
         )
         rgb = hex_to_rgb(project_bg)
-        squeeze_amount = 0.6
+        squeeze_amount = 0.5
         rgb = adjust_rgb(rgb, worktree_branch_root.absolute(), squeeze_amount)
         for color, value in zip(("red", "green", "blue"), rgb):
             click.echo(rgb_template.format(color=color, value=value), nl=False)
