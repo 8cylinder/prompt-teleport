@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import csv
 import datetime
 import hashlib
@@ -261,6 +259,8 @@ def adjust_hue(rgb: Tuple[int, int, int], hue_shift: float) -> Tuple[int, int, i
     """
     # Normalize RGB to 0-1
     r, g, b = [x / 255.0 for x in rgb]
+    # hue_shift = hue_shift * 2
+    # print(rgb, r, g, b, hue_shift)
     h, s, v = colorsys.rgb_to_hsv(r, g, b)
     h = (h + hue_shift) % 1.0
     r2, g2, b2 = colorsys.hsv_to_rgb(h, s, v)
@@ -761,7 +761,11 @@ def adjust_rgb(
     :return: The adjusted RGB tuple.
     """
     # using the dir as a seed, convert to a float
-    amount = hash_to_float(str(dir))
+    distance = hash_to_float(str(dir))
+    seed = int(str(distance).replace("0.", ""))
+    rnd = random.Random(seed)
+    amount = rnd.random()
+    # print(seed, "-", amount, "-", amount)
     # squeeze the amount by the adjustment_amount since amount is between 0 - 1
     squeezed = amount * (1 - adjustment_amount)
     adjusted = adjust_hue(rgb, squeezed)
@@ -787,6 +791,10 @@ def set_iterm2_tabs(
     In a worktree subdir (because the root has a `.bare` dir and the subtree
     has a `.git` file (not dir)) adjust the project_bg using the worktree
     branch root dir as a seed so all tabs in that tree have the same color.
+
+    adjust_rgb
+    adjust_hue
+    hash_to_float
     """
     worktree_branch_root = find_dir_upwards(current, ".git", ftype="file")
     worktree_root = (Path() / ".bare").absolute()
@@ -799,29 +807,26 @@ def set_iterm2_tabs(
     is_regular_project = project_name and not is_worktree_subdir
 
     if is_regular_dir:
+        template = r"\e]1;{}\n{}\a"  # a second row is necessary since the previous second row is not cleared automatically
         project_name = os.path.basename(os.getcwd())
-        template = r"\e]1;{}\a"
-        click.echo(template.format(project_name), nl=False)
+        click.echo(template.format(project_name, ""), nl=False)
         click.echo("\033]6;1;bg;*;default\a", nl=False)  # reset tab to default
 
     elif is_worktree_subdir:
         template = r"\e]1;{}\n{}\a"  # add a second row for the dir basename
         click.echo(
-            template.format(
-                project_name,
-                current.name,
-            ),
-            nl=False,
+            template.format(project_name, worktree_branch_root.parent.name), nl=False
         )
         rgb = hex_to_rgb(project_bg)
-        squeeze_amount = 0.5
+        squeeze_amount = 0.7  # 0.4  # 1: no difference, 0: most different
         rgb = adjust_rgb(rgb, worktree_branch_root.absolute(), squeeze_amount)
         for color, value in zip(("red", "green", "blue"), rgb):
             click.echo(rgb_template.format(color=color, value=value), nl=False)
 
     elif is_regular_project:
-        template = r"\e]1;{}\a"
-        click.echo(template.format(project_name), nl=False)
+        # print(hex_to_rgb(project_bg))
+        template = r"\e]1;{}\n{}\a"  # a second row is necessary since the previous second row is not cleared automatically
+        click.echo(template.format(project_name, ""), nl=False)
         rgb = hex_to_rgb(project_bg)
         for color, value in zip(("red", "green", "blue"), rgb):
             click.echo(rgb_template.format(color=color, value=value), nl=False)
