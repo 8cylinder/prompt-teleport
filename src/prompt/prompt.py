@@ -27,6 +27,7 @@ class Segment(Enum):
     VIRTUAL = auto()
     VENV = auto()
     NIX = auto()
+    FLOX = auto()
     SSH = auto()
     PATH = auto()
     FILLER = auto()
@@ -106,6 +107,18 @@ class Ellipses:
         return random.choice(Ellipses.list_values())
 
 
+def hsl(h: float, s: float, l: float) -> tuple[int, int, int]:
+    """Return RGB tuple from HSL color values.
+
+    :param h: Hue (0.0-1.0, where 0=red, 0.33=green, 0.67=blue, 1.0=red)
+    :param s: Saturation (0.0-1.0, where 0=gray, 1=full color)
+    :param l: Lightness (0.0-1.0, where 0=black, 0.5=normal, 1=white)
+    :return: RGB tuple with values 0-255
+    """
+    r, g, b = colorsys.hls_to_rgb(h, l, s)
+    return (int(r * 255), int(g * 255), int(b * 255))
+
+
 # "segment-name": {
 #     "fg": (R, G, B) | int | str,
 #     "bg": (R, G, B) | int | str,
@@ -125,7 +138,8 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.VIRTUAL: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
         Segment.ORB: {"fg": (204, 0, 0), "bg": (66, 12, 5), "bold": True},
         Segment.POETRY: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
-        Segment.NIX: {"fg": "white", "blue": "88"},
+        Segment.NIX: {"fg": "white", "bg": "green"},
+        Segment.FLOX: {"fg": "white", "bg": hsl(0.2, 0.6, 0.15)},
         Segment.VENV: {"fg": (239, 255, 0), "bg": (90, 95, 2)},
         Segment.DDEV: {"fg": (208, 127, 255)},
         Segment.FILLER: {"fg": (25, 61, 85)},
@@ -145,7 +159,8 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.VIRTUAL: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
         Segment.ORB: {"fg": (204, 0, 0), "bg": (66, 12, 5), "bold": True},
         Segment.POETRY: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
-        Segment.NIX: {"fg": "white", "blue": "88"},
+        Segment.NIX: {"fg": "white", "bg": "green"},
+        Segment.FLOX: {"fg": "white", "bg": "red"},
         Segment.VENV: {"fg": (239, 255, 0), "bg": (90, 95, 2)},
         Segment.FILLER: {"fg": (65, 65, 65)},
         Segment.DOLLAR: {"fg": (204, 0, 0), "bg": (0, 0, 0)},
@@ -703,6 +718,14 @@ class Chunks:
             nix = self.apply_chunk_theme(Segment.NIX, ("Nix",))
         return nix
 
+    def _chunk_flox(self) -> str:
+        flox_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
+        flox = ''
+        if flox_name:
+            flox = self.apply_chunk_theme(Segment.FLOX, (flox_name,))
+        return flox
+
+
     def _chunk_ssh(self) -> str:
         ssh_envoment = os.getenv("SSH_CLIENT", "")
         if ssh_envoment:
@@ -877,6 +900,7 @@ def ps1_prompt() -> str:
             Segment.USER,
             Segment.VENV,
             Segment.NIX,
+            Segment.FLOX,
             Segment.SSH,
             Segment.PATH,
             Segment.FILLER,
