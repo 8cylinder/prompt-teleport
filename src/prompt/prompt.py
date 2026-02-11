@@ -27,7 +27,8 @@ class Segment(Enum):
     VIRTUAL = auto()
     VENV = auto()
     NIX = auto()
-    FLOX = auto()
+    FLOX_MAIN = auto()
+    FLOX_LOCAL = auto()
     SSH = auto()
     PATH = auto()
     FILLER = auto()
@@ -139,7 +140,8 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.ORB: {"fg": (204, 0, 0), "bg": (66, 12, 5), "bold": True},
         Segment.POETRY: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
         Segment.NIX: {"fg": "white", "bg": "green"},
-        Segment.FLOX: {"fg": "white", "bg": hsl(0.2, 0.6, 0.15)},
+        Segment.FLOX_MAIN: {"fg": hsl(0.1, 0.0, 0.3), "bg": hsl(0.1, 0.0, 0.1)},
+        Segment.FLOX_LOCAL: {"fg": hsl(0.6, 0.5, 0.8), "bg": hsl(0.6, 0.6, 0.3)},
         Segment.VENV: {"fg": (239, 255, 0), "bg": (90, 95, 2)},
         Segment.DDEV: {"fg": (208, 127, 255)},
         Segment.FILLER: {"fg": (25, 61, 85)},
@@ -160,7 +162,8 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.ORB: {"fg": (204, 0, 0), "bg": (66, 12, 5), "bold": True},
         Segment.POETRY: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
         Segment.NIX: {"fg": "white", "bg": "green"},
-        Segment.FLOX: {"fg": "white", "bg": "red"},
+        Segment.FLOX_MAIN: {"fg": hsl(0.1, 0.6, 0.5), "bg": hsl(0.1, 0.6, 0.15)},
+        Segment.FLOX_LOCAL: {"fg": "white", "bg": hsl(0.1, 0.6, 0.15)},
         Segment.VENV: {"fg": (239, 255, 0), "bg": (90, 95, 2)},
         Segment.FILLER: {"fg": (65, 65, 65)},
         Segment.DOLLAR: {"fg": (204, 0, 0), "bg": (0, 0, 0)},
@@ -718,13 +721,23 @@ class Chunks:
             nix = self.apply_chunk_theme(Segment.NIX, ("Nix",))
         return nix
 
-    def _chunk_flox(self) -> str:
+    def _chunk_flox_main(self) -> str:
         flox_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
         flox = ''
         if flox_name:
-            flox = self.apply_chunk_theme(Segment.FLOX, (flox_name,))
+            if flox_name == 'default':
+                flox_name = 'fx'
+                flox = self.apply_chunk_theme(Segment.FLOX_MAIN, (flox_name,))
         return flox
 
+    def _chunk_flox_local(self) -> str:
+        flox_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
+        flox = ''
+        if flox_name:
+            if flox_name != 'default':
+                flox_name = 'fx:' + flox_name
+                flox = self.apply_chunk_theme(Segment.FLOX_LOCAL, (flox_name,))
+        return flox
 
     def _chunk_ssh(self) -> str:
         ssh_envoment = os.getenv("SSH_CLIENT", "")
@@ -841,7 +854,7 @@ def set_iterm2_tabs(
             template.format(project_name, worktree_branch_root.parent.name), nl=False
         )
         rgb = hex_to_rgb(project_bg)
-        squeeze_amount = 0.7  # 0.4  # 1: no difference, 0: most different
+        squeeze_amount = 0.1 # 0.7  # 0.4  # 1: no difference, 0: most different
         rgb = adjust_rgb(rgb, worktree_branch_root.absolute(), squeeze_amount)
         for color, value in zip(("red", "green", "blue"), rgb):
             click.echo(rgb_template.format(color=color, value=value), nl=False)
@@ -900,7 +913,8 @@ def ps1_prompt() -> str:
             Segment.USER,
             Segment.VENV,
             Segment.NIX,
-            Segment.FLOX,
+            Segment.FLOX_MAIN,
+            Segment.FLOX_LOCAL,
             Segment.SSH,
             Segment.PATH,
             Segment.FILLER,
