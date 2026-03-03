@@ -27,7 +27,7 @@ class Segment(Enum):
     VIRTUAL = auto()
     VENV = auto()
     NIX = auto()
-    FLOX_MAIN = auto()
+    FLOX_DEFAULT = auto()
     FLOX_LOCAL = auto()
     SSH = auto()
     PATH = auto()
@@ -94,6 +94,7 @@ class Ellipses:
     ex: str = "╳"
     diagonal: str = "⧄"
     hr: str = "─"
+    diamond = "♦" # ◆♦♦︎♢
 
     @staticmethod
     def list_fields() -> list[str]:
@@ -140,14 +141,14 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.ORB: {"fg": (204, 0, 0), "bg": (66, 12, 5), "bold": True},
         Segment.POETRY: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
         Segment.NIX: {"fg": "white", "bg": "green"},
-        Segment.FLOX_MAIN: {"fg": hsl(0.1, 0.0, 0.3), "bg": hsl(0.1, 0.0, 0.1)},
+        Segment.FLOX_DEFAULT: {"fg": hsl(0.1, 0.0, 0.3), "bg": hsl(0.1, 0.0, 0.1)},
         Segment.FLOX_LOCAL: {"fg": hsl(0.6, 0.5, 0.8), "bg": hsl(0.6, 0.6, 0.3)},
         Segment.VENV: {"fg": (239, 255, 0), "bg": (90, 95, 2)},
         Segment.DDEV: {"fg": (208, 127, 255)},
         Segment.FILLER: {"fg": (25, 61, 85)},
         # dollar styles are ignored for now.
         Segment.DOLLAR: {"fg": (239, 41, 41)},
-        "snip_char": {"char": Ellipses.large_dot, "fg": "red"},
+        "snip_char": {"char": Ellipses.bar, "fg": "red"},
         "filler_char": {"char": Ellipses.small_dot},
     },
     "Remote": {
@@ -162,7 +163,7 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.ORB: {"fg": (204, 0, 0), "bg": (66, 12, 5), "bold": True},
         Segment.POETRY: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
         Segment.NIX: {"fg": "white", "bg": "green"},
-        Segment.FLOX_MAIN: {"fg": hsl(0.1, 0.6, 0.5), "bg": hsl(0.1, 0.6, 0.15)},
+        Segment.FLOX_DEFAULT: {"fg": hsl(0.1, 0.6, 0.5), "bg": hsl(0.1, 0.6, 0.15)},
         Segment.FLOX_LOCAL: {"fg": "white", "bg": hsl(0.1, 0.6, 0.15)},
         Segment.VENV: {"fg": (239, 255, 0), "bg": (90, 95, 2)},
         Segment.FILLER: {"fg": (65, 65, 65)},
@@ -721,16 +722,56 @@ class Chunks:
             nix = self.apply_chunk_theme(Segment.NIX, ("Nix",))
         return nix
 
-    def _chunk_flox_main(self) -> str:
+    def _chunk_flox(self) -> str:
+        flox_env_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
+
+        if flox_env_name != 'default':
+            is_active_env = True
+
+        if flox_env_name == "default":
+            flox_name = 'fx'
+            flox = self.apply_chunk_theme(Segment.FLOX_DEFAULT, (flox_name,))
+            return flox
+
+        try:
+            output = subprocess.run(
+                ["flox", "envs", "--json"],
+                universal_newlines=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+            flox_info = json.loads(output.stdout)["raw"]
+        except json.JSONDecodeError as e:
+            error(e, exit=False)
+            return f"Error: {flox_info}"
+
+        if is_active_env:
+            ...
+        else:
+            ...
+
+
+    def _chunk_flox_default(self) -> str:
         flox_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
         flox = ''
-        if flox_name:
-            if flox_name == 'default':
-                flox_name = 'fx'
-                flox = self.apply_chunk_theme(Segment.FLOX_MAIN, (flox_name,))
+        if flox_name and flox_name == 'default':
+            flox_name = 'fx'
+            flox = self.apply_chunk_theme(Segment.FLOX_DEFAULT, (flox_name,))
         return flox
 
     def _chunk_flox_local(self) -> str:
+        """
+        local env inactive = flox_config = find .flox upward && flox_config name != "default"
+        outside dev env    = FLOX_ENV_DESCRIPTION
+
+        if: is_inactive_env:
+          ...
+        elif: is_default_env:
+          ...
+        else:
+          no flox
+
+        """
         flox_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
         flox = ''
         if flox_name:
@@ -913,7 +954,7 @@ def ps1_prompt() -> str:
             Segment.USER,
             Segment.VENV,
             Segment.NIX,
-            Segment.FLOX_MAIN,
+            Segment.FLOX_DEFAULT,
             Segment.FLOX_LOCAL,
             Segment.SSH,
             Segment.PATH,
