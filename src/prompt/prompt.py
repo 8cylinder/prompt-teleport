@@ -148,7 +148,7 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.FILLER: {"fg": (25, 61, 85)},
         # dollar styles are ignored for now.
         Segment.DOLLAR: {"fg": (239, 41, 41)},
-        "snip_char": {"char": Ellipses.bar, "fg": "red"},
+        "snip_char": {"char": Ellipses.bar, "fg": "white"},
         "filler_char": {"char": Ellipses.small_dot},
     },
     "Remote": {
@@ -574,10 +574,16 @@ class Chunks:
         except FileNotFoundError:
             error(f"No projects file found: {project_conf}", exit=False)
 
+        flox_env_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
+        if flox_env_name == 'default':
+                flox_env_name = ''
+        else:
+            flox_env_name = ' ' + Ellipses.large_dot # f'[{flox_env_name}]'
+
         if os.environ.get("KITTY_PID"):
             set_kitty_tabs(project_name, project_bg, project_fg)
         elif os.environ.get("ITERM_SESSION_ID"):
-            set_iterm2_tabs(project_name, project_bg, project_fg, cur)
+            set_iterm2_tabs(project_name, project_bg, project_fg, cur, flox_env_name)
 
         return (project_name, project_bg, project_fg)
 
@@ -850,7 +856,7 @@ def adjust_rgb(
 
 
 def set_iterm2_tabs(
-    project_name: str, project_bg: str, project_fg: str, current: Path
+    project_name: str, project_bg: str, project_fg: str, current: Path, flox_env: str
 ) -> None:
     r"""Set the tab title.
 
@@ -886,11 +892,13 @@ def set_iterm2_tabs(
     if is_regular_dir:
         template = r"\e]1;{}\n{}\a"  # a second row is necessary since the previous second row is not cleared automatically
         project_name = os.path.basename(os.getcwd())
+        project_name = project_name + flox_env
         click.echo(template.format(project_name, ""), nl=False)
         click.echo("\033]6;1;bg;*;default\a", nl=False)  # reset tab to default
 
     elif is_worktree_subdir:
         template = r"\e]1;{}\n{}\a"  # add a second row for the dir basename
+        project_name = project_name + flox_env
         click.echo(
             template.format(project_name, worktree_branch_root.parent.name), nl=False
         )
@@ -903,6 +911,7 @@ def set_iterm2_tabs(
     elif is_regular_project:
         # print(hex_to_rgb(project_bg))
         template = r"\e]1;{}\n{}\a"  # a second row is necessary since the previous second row is not cleared automatically
+        project_name = project_name + flox_env
         click.echo(template.format(project_name, ""), nl=False)
         rgb = hex_to_rgb(project_bg)
         for color, value in zip(("red", "green", "blue"), rgb):
