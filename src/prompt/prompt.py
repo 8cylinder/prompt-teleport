@@ -95,6 +95,10 @@ class Ellipses:
     diagonal: str = "⧄"
     hr: str = "─"
     diamond = "♦" # ◆♦♦︎♢
+    green_dot = "🟢"
+    red_dot = "🔴"
+    blue_dot = "🔵"
+    white_dot = "⚪️"
 
     @staticmethod
     def list_fields() -> list[str]:
@@ -578,7 +582,7 @@ class Chunks:
         if flox_env_name == 'default':
                 flox_env_name = ''
         else:
-            flox_env_name = ' ' + Ellipses.large_dot # f'[{flox_env_name}]'
+            flox_env_name = ' ' + Ellipses.green_dot # Ellipses.large_dot # f'[{flox_env_name}]'
 
         if os.environ.get("KITTY_PID"):
             set_kitty_tabs(project_name, project_bg, project_fg)
@@ -756,7 +760,6 @@ class Chunks:
         else:
             ...
 
-
     def _chunk_flox_default(self) -> str:
         flox_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
         flox = ''
@@ -903,7 +906,11 @@ def set_iterm2_tabs(
             template.format(project_name, worktree_branch_root.parent.name), nl=False
         )
         rgb = hex_to_rgb(project_bg)
-        squeeze_amount = 0.1 # 0.7  # 0.4  # 1: no difference, 0: most different
+        # Trying to keep the tabs similar color to the project color in a worktree
+        # context is not really useful.  So, for now use 0 for squeeze amount and
+        # later, remove this functionality completely.  The colors should just be
+        # 100% random.
+        squeeze_amount = 0 # 0.7  # 0.4  # 1: no difference, 0: most different
         rgb = adjust_rgb(rgb, worktree_branch_root.absolute(), squeeze_amount)
         for color, value in zip(("red", "green", "blue"), rgb):
             click.echo(rgb_template.format(color=color, value=value), nl=False)
