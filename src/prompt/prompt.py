@@ -248,8 +248,6 @@ def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
     """Convert a RGB tuple to a hex string"""
     r, g, b = rgb
     return f"#{r:02x}{g:02x}{b:02x}"
-
-
 def colorscale(hexstr: str, scalefactor: float) -> str:
     """
     Scales a hex string by ``scalefactor``. Returns scaled hex string.
@@ -324,7 +322,7 @@ def urlize(text: str, url: str) -> str:
     '\e]8;;file://{}{}\a{}\\e]8;;\a'.format(socket.gethostname(), url, text)
     """
     # return r'\e]8;;file://{}\a{}\e]8;;\a'.format(url, text)
-    return r"\e]8;;{}\a{}\e]8;;\a".format(url, text)
+    return "\x1b]8;;{}\a{}\x1b]8;;\a".format(url, text)
 
 
 def snip(string: str, length: int, sep: str, position: float = 0.5) -> tuple[str, str]:
@@ -355,9 +353,16 @@ class Chunks:
     HOME: str = os.environ.get("HOME", "")
     IS_SSH: str = os.environ.get("SSH_CLIENT", "")
 
-    def __init__(self) -> None:
-        self.theme = get_theme()
+    def __init__(self, columns: str | None = None) -> None:
+        ssh_location = "Remote" if self.IS_SSH else "Local"
+        self.theme = self._get_theme(ssh_location)
         self.segment_lengths: list[int] = []
+        # Accept columns parameter for testing, fall back to COLUMNS env var, then detect via stty
+        if columns:
+            self.columns = columns
+        else:
+            self.columns = os.environ.get("COLUMNS")
+            if not self.columns:
         _, self.columns = os.popen("stty size", "r").read().split()
         try:
             self.snip_char = self.theme["snip_char"]["char"]
@@ -630,8 +635,9 @@ class Chunks:
                 self._add_length(path)
                 pretty_path = path  # don't urlize a single character path, ie: ~ or / (it looks bad)
         else:
-            self._add_length(path + self.snip_char)
             parts = snip(path, max_len, sep=self.snip_char, position=0.25)
+            # Record the actual snipped width, not the full path width
+            self._add_length(parts[0] + self.snip_char + parts[1])
 
             pretty_path = urlize(
                 self.apply_chunk_theme(Segment.PATH, parts, split_char=self.snip_char),
@@ -972,7 +978,6 @@ def set_kitty_tabs(
             "inactive_fg": colorscale(project_fg, 0.5),
             "inactive_bg": colorscale(project_bg, 0.5),
         }
-
     else:  # is_regular_dir:
         base_color = "#ffffff"
         tab_title = "/".join(Path().absolute().parts[-2:]) + flox_env
@@ -982,8 +987,6 @@ def set_kitty_tabs(
             "inactive_fg": colorscale(base_color, 0.4),
             "inactive_bg": colorscale(base_color, 0.15),
         }
-
-
     # if project_name:
     #     tab_title = project_name + flox_env
     #     colors = {
@@ -1010,8 +1013,8 @@ def set_kitty_tabs(
     subprocess.call(color_cmd)
 
 
-def ps1_prompt() -> str:
-    c = Chunks()
+def ps1_prompt() -> None:
+    c = Chunks(columns=os.environ.get("COLUMNS"))
     right_segments = left_segments = last_segments = []
     try:
         left_segments = [

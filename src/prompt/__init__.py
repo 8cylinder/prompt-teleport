@@ -1,4 +1,4 @@
-
 from .ui import prompt
 
-prompt()
+if __name__ == "__main__":
+    prompt()
