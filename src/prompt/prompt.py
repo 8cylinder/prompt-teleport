@@ -146,7 +146,7 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.POETRY: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
         Segment.NIX: {"fg": "white", "bg": "green"},
         Segment.FLOX_DEFAULT: {"fg": hsl(0.1, 0.0, 0.3), "bg": hsl(0.1, 0.0, 0.1)},
-        Segment.FLOX_LOCAL: {"fg": hsl(0.6, 0.5, 0.8), "bg": hsl(0.6, 0.6, 0.3)},
+        Segment.FLOX_LOCAL: {"fg": hsl(0.1, 0.5, 0.7), "bg": hsl(0.1, 0.6, 0.3)},
         Segment.VENV: {"fg": (239, 255, 0), "bg": (90, 95, 2)},
         Segment.DDEV: {"fg": (208, 127, 255)},
         Segment.FILLER: {"fg": (25, 61, 85)},
@@ -242,6 +242,12 @@ def hex_to_rgb(hex_string: str) -> tuple[int, int, int]:
         rgb.append(hex_int)
 
     return (rgb[0], rgb[1], rgb[2])
+
+
+def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+    """Convert a RGB tuple to a hex string"""
+    r, g, b = rgb
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 def colorscale(hexstr: str, scalefactor: float) -> str:
@@ -585,7 +591,7 @@ class Chunks:
             flox_env_name = ' ' + Ellipses.green_dot # Ellipses.large_dot # f'[{flox_env_name}]'
 
         if os.environ.get("KITTY_PID"):
-            set_kitty_tabs(project_name, project_bg, project_fg)
+            set_kitty_tabs(project_name, project_bg, project_fg, cur, flox_env_name)
         elif os.environ.get("ITERM_SESSION_ID"):
             set_iterm2_tabs(project_name, project_bg, project_fg, cur, flox_env_name)
 
@@ -928,25 +934,73 @@ def set_iterm2_tabs(
         click.echo("This should never happen.")
 
 
-def set_kitty_tabs(project_name: str, project_bg: str, project_fg: str) -> None:
+def set_kitty_tabs(
+    project_name: str, project_bg: str, project_fg: str, current: Path, flox_env: str
+) -> None:
     """Set the kitty terminal tab colors and title"""
-    if project_name:
-        tab_title = project_name
+    worktree_branch_root = find_dir_upwards(current, ".git", ftype="file")
+    worktree_root = (Path() / ".bare").absolute()
+    is_worktree_root = worktree_root.exists()
+
+    is_regular_dir = not project_name
+    is_worktree_subdir = worktree_branch_root and not is_worktree_root
+    is_regular_project = project_name and not is_worktree_subdir
+
+    if is_worktree_subdir:
+        tab_title = project_name + flox_env
+
+        bg_rgb = hex_to_rgb(project_fg)
+        squeeze_amount = 0
+        bg_base_color = adjust_rgb(bg_rgb, worktree_branch_root.absolute(), squeeze_amount)
+        bg_base_color = rgb_to_hex(bg_base_color)
+
+        fg_rgb = hex_to_rgb(project_bg)
+        fg_base_color = adjust_rgb(fg_rgb, worktree_branch_root.absolute(), squeeze_amount)
+        fg_base_color = rgb_to_hex(fg_base_color)
+        colors = {
+            "active_fg": colorscale(fg_base_color, 1.0),
+            "active_bg": colorscale(bg_base_color, 1.0),
+            "inactive_bg": colorscale(fg_base_color, 0.5),
+            "inactive_fg": colorscale(bg_base_color, 0.5),
+        }
+
+    elif is_regular_project:
+        tab_title = project_name + flox_env
         colors = {
             "active_fg": colorscale(project_fg, 1.0),
             "active_bg": colorscale(project_bg, 1.0),
             "inactive_fg": colorscale(project_fg, 0.5),
             "inactive_bg": colorscale(project_bg, 0.5),
         }
-    else:
+
+    else:  # is_regular_dir:
         base_color = "#ffffff"
-        tab_title = "/".join(Path().absolute().parts[-2:])
+        tab_title = "/".join(Path().absolute().parts[-2:]) + flox_env
         colors = {
             "active_fg": base_color,
             "active_bg": colorscale(base_color, 0.3),
             "inactive_fg": colorscale(base_color, 0.4),
             "inactive_bg": colorscale(base_color, 0.15),
         }
+
+
+    # if project_name:
+    #     tab_title = project_name + flox_env
+    #     colors = {
+    #         "active_fg": colorscale(project_fg, 1.0),
+    #         "active_bg": colorscale(project_bg, 1.0),
+    #         "inactive_fg": colorscale(project_fg, 0.5),
+    #         "inactive_bg": colorscale(project_bg, 0.5),
+    #     }
+    # else:
+    #     base_color = "#ffffff"
+    #     tab_title = "/".join(Path().absolute().parts[-2:]) + flox_env
+    #     colors = {
+    #         "active_fg": base_color,
+    #         "active_bg": colorscale(base_color, 0.3),
+    #         "inactive_fg": colorscale(base_color, 0.4),
+    #         "inactive_bg": colorscale(base_color, 0.15),
+    #     }
     all_colors = [f"{k}={v}" for k, v in colors.items()]
     color_cmd = ["kitten", "@", "set-tab-color"] + all_colors
     title_cmd = ["kitten", "@", "set-tab-title", tab_title]
@@ -965,13 +1019,13 @@ def ps1_prompt() -> str:
             Segment.POETRY,
             Segment.PIPENV,
             Segment.SINK,
+            Segment.FLOX_DEFAULT,
+            Segment.FLOX_LOCAL,
             # Segment.DDEV,  # This is slow
             Segment.BRANCH,
             Segment.USER,
             Segment.VENV,
             Segment.NIX,
-            Segment.FLOX_DEFAULT,
-            Segment.FLOX_LOCAL,
             Segment.SSH,
             Segment.PATH,
             Segment.FILLER,
