@@ -46,7 +46,7 @@ class Enviroment(Enum):
     DOCKER = auto()
 
 
-def get_theme() -> dict[Segment | dict[str, dict[str, Any]]]:
+def get_theme() -> dict[Any, Any]:
     remote = "Remote"
     local = "Local"
     environment = get_environment()
@@ -85,6 +85,7 @@ class Ellipses:
     large_square: str = "▉"  # "\u2589"
     small_square: str = "▮"  # "\u25ae"  ◼
     upper_left_square: str = "▘"
+    xlarge_dot = "●"
     large_dot: str = "⏺"  # "\u25cf"
     medium_dot: str = "•"
     small_dot: str = "·"
@@ -94,7 +95,7 @@ class Ellipses:
     ex: str = "╳"
     diagonal: str = "⧄"
     hr: str = "─"
-    diamond = "♦" # ◆♦♦︎♢
+    diamond = "♦"  # ◆♦♦︎♢
     green_dot = "🟢"
     red_dot = "🔴"
     blue_dot = "🔵"
@@ -248,6 +249,8 @@ def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
     """Convert a RGB tuple to a hex string"""
     r, g, b = rgb
     return f"#{r:02x}{g:02x}{b:02x}"
+
+
 def colorscale(hexstr: str, scalefactor: float) -> str:
     """
     Scales a hex string by ``scalefactor``. Returns scaled hex string.
@@ -361,9 +364,9 @@ class Chunks:
         if columns:
             self.columns = columns
         else:
-            self.columns = os.environ.get("COLUMNS")
+            self.columns = os.environ.get("COLUMNS") or ""
             if not self.columns:
-        _, self.columns = os.popen("stty size", "r").read().split()
+                _, self.columns = os.popen("stty size", "r").read().split()
         try:
             self.snip_char = self.theme["snip_char"]["char"]
         except KeyError:
@@ -450,15 +453,17 @@ class Chunks:
             # self._add_length(template.format(project_name))
             self._add_length(f"[{project_name}]")
 
+            fg: str | tuple[int, int, int] = project_fg
+            bg: str | tuple[int, int, int] = project_bg
             if project_fg.startswith("#"):
-                project_fg = hex_to_rgb(project_fg)
+                fg = hex_to_rgb(project_fg)
             if project_bg.startswith("#"):
-                project_bg = hex_to_rgb(project_bg)
+                bg = hex_to_rgb(project_bg)
 
             rendered_chunks = self._style_chunk(
                 project_name,
-                fg=project_fg,
-                bg=project_bg,
+                fg=fg,
+                bg=bg,
                 bold=theme.get("bold", False),
                 italic=theme.get("italic", False),
                 ul=theme.get("underline", False),
@@ -501,7 +506,7 @@ class Chunks:
             else:
                 rendered_chunks = "".join(parts)
 
-            # An extra can be somthing appended to a chunk like a colored dot to indicate git status
+            # An extra can be something appended to a chunk like a colored dot to indicate git status
             if extra:
                 extra_chars = extra[0]
                 # minus one char to account for no space between the chunk and the extra
@@ -563,9 +568,9 @@ class Chunks:
 
         return complete
 
-    @staticmethod
-    def get_project_info() -> tuple[str, str, str]:
-        """Get the project name and color from ~/.sink-projects"""
+    # @staticmethod
+    def get_project_info(self) -> tuple[str, str, str]:
+        """Get the project name and color from ~/.prompt-projects"""
         # TODO: optimize this method
         project_conf = Path("~/.prompt-projects").expanduser()
         cur = Path(os.path.curdir).absolute()
@@ -590,13 +595,21 @@ class Chunks:
             error(f"No projects file found: {project_conf}", exit=False)
 
         flox_env_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
-        if flox_env_name == 'default':
-                flox_env_name = ''
+        if not flox_env_name or flox_env_name == "default":
+            flox_env_name = ""
         else:
-            flox_env_name = ' ' + Ellipses.green_dot # Ellipses.large_dot # f'[{flox_env_name}]'
+            flox_env_name = (
+                " " + Ellipses.xlarge_dot  # Ellipses.green_dot
+            )  # Ellipses.large_dot # f'[{flox_env_name}]'
 
         if os.environ.get("KITTY_PID"):
-            set_kitty_tabs(project_name, project_bg, project_fg, cur, flox_env_name)
+            set_kitty_tabs(
+                project_name,
+                project_bg,
+                project_fg,
+                cur,
+                flox_env_name,
+            )
         elif os.environ.get("ITERM_SESSION_ID"):
             set_iterm2_tabs(project_name, project_bg, project_fg, cur, flox_env_name)
 
@@ -747,11 +760,11 @@ class Chunks:
     def _chunk_flox(self) -> str:
         flox_env_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
 
-        if flox_env_name != 'default':
+        if flox_env_name != "default":
             is_active_env = True
 
         if flox_env_name == "default":
-            flox_name = 'fx'
+            flox_name = "fx"
             flox = self.apply_chunk_theme(Segment.FLOX_DEFAULT, (flox_name,))
             return flox
 
@@ -771,12 +784,13 @@ class Chunks:
             ...
         else:
             ...
+        return ""
 
     def _chunk_flox_default(self) -> str:
         flox_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
-        flox = ''
-        if flox_name and flox_name == 'default':
-            flox_name = 'fx'
+        flox = ""
+        if flox_name and flox_name == "default":
+            flox_name = "fx"
             flox = self.apply_chunk_theme(Segment.FLOX_DEFAULT, (flox_name,))
         return flox
 
@@ -794,10 +808,10 @@ class Chunks:
 
         """
         flox_name = os.getenv("FLOX_ENV_DESCRIPTION", "")
-        flox = ''
+        flox = ""
         if flox_name:
-            if flox_name != 'default':
-                flox_name = 'fx:' + flox_name
+            if flox_name != "default":
+                flox_name = "fx:" + flox_name
                 flox = self.apply_chunk_theme(Segment.FLOX_LOCAL, (flox_name,))
         return flox
 
@@ -847,7 +861,7 @@ class Chunks:
 
 
 def adjust_rgb(
-    rgb: tuple[int, int, int], dir: Path, adjustment_amount=0.15
+    rgb: tuple[int, int, int], dir: Path, adjustment_amount: float = 0.15
 ) -> tuple[int, int, int]:
     """Adjusts the RGB color based on a hash of the directory path.
 
@@ -912,6 +926,7 @@ def set_iterm2_tabs(
         click.echo("\033]6;1;bg;*;default\a", nl=False)  # reset tab to default
 
     elif is_worktree_subdir:
+        assert worktree_branch_root is not None
         template = r"\e]1;{}\n{}\a"  # add a second row for the dir basename
         project_name = project_name + flox_env
         click.echo(
@@ -922,7 +937,7 @@ def set_iterm2_tabs(
         # context is not really useful.  So, for now use 0 for squeeze amount and
         # later, remove this functionality completely.  The colors should just be
         # 100% random.
-        squeeze_amount = 0 # 0.7  # 0.4  # 1: no difference, 0: most different
+        squeeze_amount = 0  # 1: no difference, 0: most different
         rgb = adjust_rgb(rgb, worktree_branch_root.absolute(), squeeze_amount)
         for color, value in zip(("red", "green", "blue"), rgb):
             click.echo(rgb_template.format(color=color, value=value), nl=False)
@@ -941,7 +956,12 @@ def set_iterm2_tabs(
 
 
 def set_kitty_tabs(
-    project_name: str, project_bg: str, project_fg: str, current: Path, flox_env: str
+    project_name: str,
+    project_bg: str,
+    project_fg: str,
+    current: Path,
+    flox_env: str,
+    # branch: str,
 ) -> None:
     """Set the kitty terminal tab colors and title"""
     worktree_branch_root = find_dir_upwards(current, ".git", ftype="file")
@@ -953,16 +973,19 @@ def set_kitty_tabs(
     is_regular_project = project_name and not is_worktree_subdir
 
     if is_worktree_subdir:
+        assert worktree_branch_root is not None
         tab_title = project_name + flox_env
 
         bg_rgb = hex_to_rgb(project_fg)
         squeeze_amount = 0
-        bg_base_color = adjust_rgb(bg_rgb, worktree_branch_root.absolute(), squeeze_amount)
-        bg_base_color = rgb_to_hex(bg_base_color)
+        bg_base_color: str = rgb_to_hex(
+            adjust_rgb(bg_rgb, worktree_branch_root.absolute(), squeeze_amount)
+        )
 
         fg_rgb = hex_to_rgb(project_bg)
-        fg_base_color = adjust_rgb(fg_rgb, worktree_branch_root.absolute(), squeeze_amount)
-        fg_base_color = rgb_to_hex(fg_base_color)
+        fg_base_color: str = rgb_to_hex(
+            adjust_rgb(fg_rgb, worktree_branch_root.absolute(), squeeze_amount)
+        )
         colors = {
             "active_fg": colorscale(fg_base_color, 1.0),
             "active_bg": colorscale(bg_base_color, 1.0),
@@ -975,8 +998,8 @@ def set_kitty_tabs(
         colors = {
             "active_fg": colorscale(project_fg, 1.0),
             "active_bg": colorscale(project_bg, 1.0),
-            "inactive_fg": colorscale(project_fg, 0.5),
-            "inactive_bg": colorscale(project_bg, 0.5),
+            "inactive_fg": colorscale(project_fg, 0.7),
+            "inactive_bg": colorscale(project_bg, 0.7),
         }
     else:  # is_regular_dir:
         base_color = "#ffffff"
@@ -1013,7 +1036,7 @@ def set_kitty_tabs(
     subprocess.call(color_cmd)
 
 
-def ps1_prompt() -> None:
+def ps1_prompt() -> str:
     c = Chunks(columns=os.environ.get("COLUMNS"))
     right_segments = left_segments = last_segments = []
     try:

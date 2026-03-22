@@ -136,7 +136,7 @@ class ColorParamType(click.ParamType):
     ]
     hex_colors = "^#(?:[0-9a-fA-F]{3}){1,2}$"
 
-    def convert(self, value: str, param, ctx) -> str:
+    def convert(self, value: str, param: click.Parameter | None, ctx: click.Context | None) -> str:
         is_color = False
         if value in self.named_colors:
             is_color = True

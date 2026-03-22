@@ -1,6 +1,6 @@
 [project]
 name = "prompt"
-version = "0.2.1"
+version = "0.2.2"
 description = "Terminal prompt and project teleport"
 readme = "README.md"
 authors = [
