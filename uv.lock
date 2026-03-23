@@ -238,7 +238,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/0c/ad/412a6ae455a682679
 
 [[package]]
 name = "prompt"
-version = "0.2.1"
+version = "0.2.2"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
