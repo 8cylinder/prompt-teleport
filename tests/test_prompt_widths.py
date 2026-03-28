@@ -67,19 +67,8 @@ class TestPromptWidths:
 
             # Use patch for Path since monkeypatch has issues with it
             with patch("prompt.prompt.Path", side_effect=mock_path_factory):
-                # Capture stdout and stderr
-                old_stdout = sys.stdout
-                old_stderr = sys.stderr
-                sys.stdout = StringIO()
-                sys.stderr = StringIO()
-
-                try:
-                    from prompt.prompt import ps1_prompt
-                    ps1_prompt()
-                    output = sys.stdout.getvalue()
-                finally:
-                    sys.stdout = old_stdout
-                    sys.stderr = old_stderr
+                from prompt.prompt import ps1_prompt
+                output = ps1_prompt()
 
         finally:
             os.unlink(temp_projects_file)
@@ -112,87 +101,65 @@ class TestPromptWidths:
         clean_text = clean_text.rstrip('\n')
         return len(clean_text)
 
+    def _get_prompt_line(self, output: str) -> str:
+        """Extract the main prompt line from ps1_prompt output.
+
+        ps1_prompt() returns a string with the prompt segments on the first
+        line and a dollar sign on the second line (after \\n in the dollar chunk).
+        """
+        lines = output.split('\n')
+        return lines[0]
+
     @pytest.mark.unit
     def test_prompt_width_80_columns(self, monkeypatch):
         """Test prompt generation at standard 80-column width."""
         output = self._capture_ps1_output(80, monkeypatch)
-        lines = output.split('\n')
+        prompt_line = self._get_prompt_line(output)
 
-        assert len(lines) >= 2, f"Expected at least 2 lines, got {len(lines)}"
-        assert lines[0] == "", f"First line should be blank, got: {repr(lines[0])}"
-
-        prompt_line = lines[1]
         assert prompt_line != "", "Prompt line should not be empty"
 
         visible_width = self._count_visible_width(prompt_line)
         assert visible_width <= 80, f"Prompt width {visible_width} exceeds 80"
         assert visible_width >= 50, f"Prompt width {visible_width} is too small"
 
-        clean_prompt = self._strip_ansi_codes(prompt_line)
-        assert '\n' not in clean_prompt, "Prompt contains newline (wrapping detected)"
-
     @pytest.mark.unit
     def test_prompt_width_120_columns(self, monkeypatch):
         """Test prompt generation at wider 120-column width."""
         output = self._capture_ps1_output(120, monkeypatch)
-        lines = output.split('\n')
-
-        assert len(lines) >= 2
-        prompt_line = lines[1]
+        prompt_line = self._get_prompt_line(output)
         visible_width = self._count_visible_width(prompt_line)
 
         assert visible_width <= 120, f"Prompt width {visible_width} exceeds 120"
         assert visible_width >= 70, f"Prompt width {visible_width} is too small for 120 cols"
 
-        clean_prompt = self._strip_ansi_codes(prompt_line)
-        assert '\n' not in clean_prompt, "Prompt contains newline (wrapping detected)"
-
     @pytest.mark.unit
     def test_prompt_width_160_columns(self, monkeypatch):
         """Test prompt generation at extra-wide 160-column width."""
         output = self._capture_ps1_output(160, monkeypatch)
-        lines = output.split('\n')
-
-        assert len(lines) >= 2
-        prompt_line = lines[1]
+        prompt_line = self._get_prompt_line(output)
         visible_width = self._count_visible_width(prompt_line)
 
         assert visible_width <= 160, f"Prompt width {visible_width} exceeds 160"
         assert visible_width >= 90, f"Prompt width {visible_width} is too small for 160 cols"
 
-        clean_prompt = self._strip_ansi_codes(prompt_line)
-        assert '\n' not in clean_prompt, "Prompt contains newline (wrapping detected)"
-
     @pytest.mark.unit
     def test_prompt_width_40_columns(self, monkeypatch):
         """Test prompt generation at narrow 40-column width."""
         output = self._capture_ps1_output(40, monkeypatch)
-        lines = output.split('\n')
-
-        assert len(lines) >= 2
-        prompt_line = lines[1]
+        prompt_line = self._get_prompt_line(output)
         visible_width = self._count_visible_width(prompt_line)
 
         assert visible_width <= 40, f"Prompt width {visible_width} exceeds 40"
-
-        clean_prompt = self._strip_ansi_codes(prompt_line)
-        assert '\n' not in clean_prompt, "Prompt contains newline (wrapping detected)"
 
     @pytest.mark.unit
     def test_prompt_width_200_columns(self, monkeypatch):
         """Test prompt generation at very wide 200-column width."""
         output = self._capture_ps1_output(200, monkeypatch)
-        lines = output.split('\n')
-
-        assert len(lines) >= 2
-        prompt_line = lines[1]
+        prompt_line = self._get_prompt_line(output)
         visible_width = self._count_visible_width(prompt_line)
 
         assert visible_width <= 200, f"Prompt width {visible_width} exceeds 200"
         assert visible_width >= 100, f"Prompt width {visible_width} is too small for 200 cols"
-
-        clean_prompt = self._strip_ansi_codes(prompt_line)
-        assert '\n' not in clean_prompt, "Prompt contains newline (wrapping detected)"
 
     @pytest.mark.unit
     def test_prompt_no_wrapping_at_all_widths(self, monkeypatch):
@@ -201,19 +168,11 @@ class TestPromptWidths:
 
         for width in test_widths:
             output = self._capture_ps1_output(width, monkeypatch)
-            lines = output.split('\n')
-
-            assert len(lines) >= 2, f"Width {width}: Expected at least 2 lines, got {len(lines)}"
-
-            prompt_line = lines[1]
+            prompt_line = self._get_prompt_line(output)
             visible_width = self._count_visible_width(prompt_line)
 
             assert visible_width <= width, \
                 f"Width {width}: Prompt is {visible_width} chars (exceeds width)"
-
-            clean_prompt = self._strip_ansi_codes(prompt_line)
-            assert '\n' not in clean_prompt, \
-                f"Width {width}: Prompt contains newline"
 
     @pytest.mark.unit
     def test_prompt_fills_width_with_filler(self, monkeypatch):
@@ -221,8 +180,8 @@ class TestPromptWidths:
         output_80 = self._capture_ps1_output(80, monkeypatch)
         output_120 = self._capture_ps1_output(120, monkeypatch)
 
-        prompt_80 = output_80.split('\n')[1]
-        prompt_120 = output_120.split('\n')[1]
+        prompt_80 = self._get_prompt_line(output_80)
+        prompt_120 = self._get_prompt_line(output_120)
 
         width_80 = self._count_visible_width(prompt_80)
         width_120 = self._count_visible_width(prompt_120)
@@ -242,7 +201,7 @@ class TestPromptWidths:
 
         for width, max_expected in test_cases:
             output = self._capture_ps1_output(width, monkeypatch)
-            prompt_line = output.split('\n')[1]
+            prompt_line = self._get_prompt_line(output)
             visible_width = self._count_visible_width(prompt_line)
 
             assert visible_width <= max_expected, \
@@ -258,11 +217,7 @@ class TestPromptWidths:
 
         for width in widths:
             output = self._capture_ps1_output(width, monkeypatch)
-            lines = output.split('\n')
-
-            assert len(lines) >= 2, f"Width {width}: Expected at least 2 lines, got {len(lines)}"
-
-            prompt_line = lines[1]
+            prompt_line = self._get_prompt_line(output)
             clean = self._strip_ansi_codes(prompt_line)
 
             assert len(clean) > 0, f"Width {width}: Prompt is empty"
@@ -272,7 +227,7 @@ class TestPromptWidths:
     def test_prompt_contains_filler_at_wide_width(self, monkeypatch):
         """Test that filler segment is used at wide widths."""
         output = self._capture_ps1_output(200, monkeypatch)
-        prompt_line = output.split('\n')[1]
+        prompt_line = self._get_prompt_line(output)
         clean = self._strip_ansi_codes(prompt_line)
 
         assert len(clean) >= 100, \
@@ -286,7 +241,7 @@ class TestPromptWidths:
         """Test that prompt never exceeds column limit."""
         for width in range(40, 201, 20):
             output = self._capture_ps1_output(width, monkeypatch)
-            prompt_line = output.split('\n')[1]
+            prompt_line = self._get_prompt_line(output)
             visible_width = self._count_visible_width(prompt_line)
 
             assert visible_width <= width, \
@@ -294,16 +249,16 @@ class TestPromptWidths:
 
     @pytest.mark.unit
     def test_prompt_single_line_output(self, monkeypatch):
-        """Test that prompt output is always a single line (plus blank line)."""
+        """Test that prompt output has one prompt line plus a dollar line."""
         widths = [40, 80, 120, 160, 200]
 
         for width in widths:
             output = self._capture_ps1_output(width, monkeypatch)
-            all_lines = output.split('\n')
-            actual_lines = [l for l in all_lines if l != '']
-
-            assert len(actual_lines) == 1, \
-                f"Width {width}: Expected 1 prompt line, got {len(actual_lines)}"
+            lines = output.split('\n')
+            # Line 0: prompt segments, Line 1: dollar sign
+            non_empty = [l for l in lines if l.strip() != '']
+            assert len(non_empty) == 2, \
+                f"Width {width}: Expected 2 lines (prompt + dollar), got {len(non_empty)}"
 
 
 class TestChunksWidthCalculation:

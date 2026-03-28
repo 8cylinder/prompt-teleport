@@ -227,15 +227,19 @@ class TestGetProjectInfo:
             temp_file = f.name
 
         try:
-            with patch("prompt.prompt.Path") as mock_path:
-                mock_path.return_value.expanduser.return_value = temp_file
-                with patch("os.path.curdir", "/home/user/myproject/src"):
-                    with patch("os.path.abspath") as mock_abs:
-                        mock_abs.return_value = "/home/user/myproject/src"
-                        with patch.object(Path, "is_relative_to", return_value=True):
-                            name, bg, fg = Chunks.get_project_info()
-                            assert name == "myproject"
-                            assert bg == "#FF0000"
+            with patch.dict(os.environ, {"SSH_CLIENT": "", "KITTY_PID": "", "ITERM_SESSION_ID": ""}):
+                with patch("os.popen") as mock_popen:
+                    mock_popen.return_value.read.return_value = "24 80"
+                    chunks = Chunks()
+                    with patch("prompt.prompt.Path") as mock_path:
+                        mock_path.return_value.expanduser.return_value = temp_file
+                        with patch("os.path.curdir", "/home/user/myproject/src"):
+                            with patch("os.path.abspath") as mock_abs:
+                                mock_abs.return_value = "/home/user/myproject/src"
+                                with patch.object(Path, "is_relative_to", return_value=True):
+                                    name, bg, fg = chunks.get_project_info()
+                                    assert name == "myproject"
+                                    assert bg == "#FF0000"
         finally:
             os.unlink(temp_file)
 
@@ -247,31 +251,39 @@ class TestGetProjectInfo:
             temp_file = f.name
 
         try:
-            # Mock the config file location
-            with patch("pathlib.Path.expanduser") as mock_expand:
-                mock_expand.return_value = Path(temp_file)
-                # Mock the current directory to be somewhere not in any project
-                with patch("os.path.curdir", "/other/location"):
-                    with patch("os.path.abspath") as mock_abs:
-                        mock_abs.return_value = "/other/location"
-                        name, bg, fg = Chunks.get_project_info()
-                        # Should return defaults when not in any project
-                        assert name == ""
-                        assert bg == "blue"  # Default
-                        assert fg == "white"  # Default
+            with patch.dict(os.environ, {"SSH_CLIENT": "", "KITTY_PID": "", "ITERM_SESSION_ID": ""}):
+                with patch("os.popen") as mock_popen:
+                    mock_popen.return_value.read.return_value = "24 80"
+                    chunks = Chunks()
+                    # Mock the config file location
+                    with patch("pathlib.Path.expanduser") as mock_expand:
+                        mock_expand.return_value = Path(temp_file)
+                        # Mock the current directory to be somewhere not in any project
+                        with patch("os.path.curdir", "/other/location"):
+                            with patch("os.path.abspath") as mock_abs:
+                                mock_abs.return_value = "/other/location"
+                                name, bg, fg = chunks.get_project_info()
+                                # Should return defaults when not in any project
+                                assert name == ""
+                                assert bg == "blue"  # Default
+                                assert fg == "white"  # Default
         finally:
             os.unlink(temp_file)
 
     @pytest.mark.edge_case
     def test_get_project_info_missing_file(self):
         """Test get_project_info with missing config file."""
-        with patch("prompt.prompt.Path") as mock_path:
-            mock_path.return_value.expanduser.return_value = "/nonexistent/file"
-            with patch("builtins.open", side_effect=FileNotFoundError):
-                # Should not crash, should return defaults
-                name, bg, fg = Chunks.get_project_info()
-                assert name == ""
-                assert bg == "blue"
+        with patch.dict(os.environ, {"SSH_CLIENT": "", "KITTY_PID": "", "ITERM_SESSION_ID": ""}):
+            with patch("os.popen") as mock_popen:
+                mock_popen.return_value.read.return_value = "24 80"
+                chunks = Chunks()
+                with patch("prompt.prompt.Path") as mock_path:
+                    mock_path.return_value.expanduser.return_value = "/nonexistent/file"
+                    with patch("builtins.open", side_effect=FileNotFoundError):
+                        # Should not crash, should return defaults
+                        name, bg, fg = chunks.get_project_info()
+                        assert name == ""
+                        assert bg == "blue"
 
 
 class TestChunkSpecificMethods:

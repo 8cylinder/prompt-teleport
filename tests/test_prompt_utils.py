@@ -177,7 +177,7 @@ class TestFindDirUpwards:
     def test_find_dir_in_current(self):
         """Test finding directory in current location."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir_path = Path(tmpdir)
+            tmpdir_path = Path(tmpdir).resolve()
             target_dir = tmpdir_path / "target"
             target_dir.mkdir()
 
@@ -188,7 +188,7 @@ class TestFindDirUpwards:
     def test_find_dir_in_parent(self):
         """Test finding directory in parent path."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir_path = Path(tmpdir)
+            tmpdir_path = Path(tmpdir).resolve()
             target_dir = tmpdir_path / "target"
             target_dir.mkdir()
             child_dir = target_dir / "child"

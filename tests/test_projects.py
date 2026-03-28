@@ -136,22 +136,17 @@ class TestGetProjectDir:
 
     @pytest.mark.edge_case
     def test_path_prefix_issue(self):
-        """Test the path prefix matching vulnerability.
+        """Test that /home/myproject2 doesn't match /home/myproject.
 
-        This tests that /home/myproject2 doesn't match /home/myproject.
-        This is currently a bug - it uses string.startswith() instead of
-        proper path comparison.
+        Uses Path.is_relative_to() for proper path component matching
+        instead of string prefix matching.
         """
         projects = {
             "myproject": ["/home/myproject", "#FF0000"],
         }
-        # This is a known bug: /home/myproject2 will incorrectly match /home/myproject
-        # because "startswith" only checks string prefix, not path components
         with patch("os.path.realpath", return_value="/home/myproject2/src"):
             result = get_project_dir(projects)
-            # Currently returns the path (bug), but should return False
-            # After fix, this should be: assert result is False
-            assert result == "/home/myproject"  # Current buggy behavior
+            assert result is False
 
     @pytest.mark.unit
     def test_multiple_projects_selects_closest(self):
