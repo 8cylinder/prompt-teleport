@@ -17,8 +17,7 @@ class TestChunksInit:
     def test_chunks_init_local(self):
         """Test Chunks initialization in local environment."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 assert chunks.theme is not None
@@ -28,28 +27,35 @@ class TestChunksInit:
     def test_chunks_init_ssh(self):
         """Test Chunks initialization in SSH environment."""
         with patch.dict(os.environ, {"SSH_CLIENT": "192.168.1.1"}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 # Should use Remote theme
                 assert chunks.theme is not None
 
     @pytest.mark.edge_case
-    def test_chunks_init_invalid_stty(self):
-        """Test Chunks initialization with invalid stty output."""
-        with patch("os.popen") as mock_popen:
-            # Return invalid stty output
-            mock_popen.return_value.read.return_value = "invalid"
-            with pytest.raises(ValueError):
-                Chunks()
+    def test_chunks_init_no_terminal_falls_back_to_stty(self):
+        """Test Chunks falls back to stty when os.get_terminal_size fails."""
+        with patch("os.get_terminal_size", side_effect=OSError("not a terminal")):
+            with patch("os.popen") as mock_popen:
+                mock_popen.return_value.read.return_value = "24 120"
+                chunks = Chunks()
+                assert chunks.columns == "120"
+
+    @pytest.mark.edge_case
+    def test_chunks_init_no_terminal_falls_back_to_default(self):
+        """Test Chunks falls back to 80 when both detection methods fail."""
+        with patch("os.get_terminal_size", side_effect=OSError("not a terminal")):
+            with patch("os.popen") as mock_popen:
+                mock_popen.return_value.read.return_value = ""
+                chunks = Chunks()
+                assert chunks.columns == "80"
 
     @pytest.mark.unit
     def test_chunks_segment_lengths_tracking(self):
         """Test that segment lengths are tracked."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 assert chunks.segment_lengths == []
@@ -64,8 +70,7 @@ class TestChunkApplyTheme:
     def test_apply_theme_path_segment(self):
         """Test applying theme to PATH segment."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 result = chunks.apply_chunk_theme(Segment.PATH, ("/home/user",))
@@ -76,8 +81,7 @@ class TestChunkApplyTheme:
     def test_apply_theme_user_segment(self):
         """Test applying theme to USER segment."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 result = chunks.apply_chunk_theme(Segment.USER, ("user@hostname",))
@@ -88,8 +92,7 @@ class TestChunkApplyTheme:
     def test_apply_theme_dollar_segment_no_styling(self):
         """Test that DOLLAR segment returns unstyled."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 result = chunks.apply_chunk_theme(Segment.DOLLAR, ("$ ",))
@@ -100,8 +103,7 @@ class TestChunkApplyTheme:
     def test_apply_theme_multiple_chunks(self):
         """Test applying theme with multiple chunks (split path)."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 result = chunks.apply_chunk_theme(
@@ -116,8 +118,7 @@ class TestChunkApplyTheme:
     def test_apply_theme_sink_no_project(self):
         """Test SINK segment when no project is found."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 # Mock get_project_info to return empty project
@@ -134,8 +135,7 @@ class TestChunkGetLength:
     def test_get_length_calculation(self):
         """Test terminal width calculation."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 chunks.segment_lengths = [5, 3, 4]  # Total: 12
@@ -147,8 +147,7 @@ class TestChunkGetLength:
     def test_get_length_with_extra(self):
         """Test length calculation with extra string."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 chunks.segment_lengths = [5]
@@ -164,8 +163,7 @@ class TestGetChunk:
     def test_get_chunk_path(self):
         """Test getting PATH chunk."""
         with patch.dict(os.environ, {"SSH_CLIENT": "", "HOME": "/home/user"}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 # Mock the path method
@@ -177,8 +175,7 @@ class TestGetChunk:
     def test_get_chunk_time(self):
         """Test getting TIME chunk."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 result = chunks.get_chunk(Segment.TIME)
@@ -190,11 +187,10 @@ class TestGetChunk:
     def test_get_chunk_user(self):
         """Test getting USER chunk."""
         with patch.dict(os.environ, {"SSH_CLIENT": "", "USER": "testuser"}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
-                with patch("socket.gethostname", return_value="testhost"):
+                with patch.object(Chunks, "HOSTNAME", "testhost"):
                     result = chunks.get_chunk(Segment.USER)
                     assert "testuser" in result
                     assert "testhost" in result
@@ -203,8 +199,7 @@ class TestGetChunk:
     def test_get_chunk_invalid_segment(self):
         """Test getting invalid segment raises error."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 # Create a mock invalid segment
@@ -228,8 +223,7 @@ class TestGetProjectInfo:
 
         try:
             with patch.dict(os.environ, {"SSH_CLIENT": "", "KITTY_PID": "", "ITERM_SESSION_ID": ""}):
-                with patch("os.popen") as mock_popen:
-                    mock_popen.return_value.read.return_value = "24 80"
+                with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                     chunks = Chunks()
                     with patch("prompt.prompt.Path") as mock_path:
                         mock_path.return_value.expanduser.return_value = temp_file
@@ -252,8 +246,7 @@ class TestGetProjectInfo:
 
         try:
             with patch.dict(os.environ, {"SSH_CLIENT": "", "KITTY_PID": "", "ITERM_SESSION_ID": ""}):
-                with patch("os.popen") as mock_popen:
-                    mock_popen.return_value.read.return_value = "24 80"
+                with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                     chunks = Chunks()
                     # Mock the config file location
                     with patch("pathlib.Path.expanduser") as mock_expand:
@@ -274,8 +267,7 @@ class TestGetProjectInfo:
     def test_get_project_info_missing_file(self):
         """Test get_project_info with missing config file."""
         with patch.dict(os.environ, {"SSH_CLIENT": "", "KITTY_PID": "", "ITERM_SESSION_ID": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
                 with patch("prompt.prompt.Path") as mock_path:
                     mock_path.return_value.expanduser.return_value = "/nonexistent/file"
@@ -297,8 +289,7 @@ class TestChunkSpecificMethods:
             "VIRTUAL_ENV": "/home/user/.venv/myenv",
             "POETRY_ACTIVE": ""
         }):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 result = chunks._chunk_venv()
@@ -311,8 +302,7 @@ class TestChunkSpecificMethods:
             "SSH_CLIENT": "",
             "VIRTUAL_ENV": "",
         }, clear=False):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 result = chunks._chunk_venv()
@@ -322,8 +312,7 @@ class TestChunkSpecificMethods:
     def test_chunk_ssh_when_connected(self):
         """Test SSH chunk when connected via SSH."""
         with patch.dict(os.environ, {"SSH_CLIENT": "192.168.1.1"}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 result = chunks._chunk_ssh()
@@ -333,9 +322,38 @@ class TestChunkSpecificMethods:
     def test_chunk_ssh_when_local(self):
         """Test SSH chunk when not connected."""
         with patch.dict(os.environ, {"SSH_CLIENT": ""}):
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
                 chunks = Chunks()
 
                 result = chunks._chunk_ssh()
                 assert result == ""
+
+
+class TestGitSkipOptimization:
+    """Test that git subprocess is skipped in non-git directories."""
+
+    @pytest.mark.unit
+    def test_branch_skips_git_when_not_in_repo(self):
+        """Test that _chunk_branch returns empty without calling subprocess in non-git dirs."""
+        with patch.dict(os.environ, {"SSH_CLIENT": ""}):
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
+                chunks = Chunks()
+                chunks._dir_markers[".git"] = None
+
+                with patch("subprocess.run") as mock_run:
+                    result = chunks._chunk_branch()
+                    assert result == ""
+                    mock_run.assert_not_called()
+
+    @pytest.mark.unit
+    def test_branch_calls_git_when_in_repo(self):
+        """Test that _chunk_branch does call git when .git marker is present."""
+        with patch.dict(os.environ, {"SSH_CLIENT": ""}):
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
+                chunks = Chunks()
+                chunks._dir_markers[".git"] = Path("/some/repo/.git")
+
+                with patch("subprocess.run") as mock_run:
+                    mock_run.return_value.stdout = "## main...origin/main\n"
+                    result = chunks._chunk_branch()
+                    mock_run.assert_called_once()

@@ -4,16 +4,18 @@ These tests verify that:
 1. The prompt fills the terminal width appropriately
 2. There is no line wrapping (single line output)
 3. Width handling works correctly at various terminal sizes
+4. End-to-end ps1 generation works without errors
 """
 
 import os
 import re
+import tempfile
 from io import StringIO
 from unittest.mock import patch
 import sys
 
 import pytest
-from prompt.prompt import Chunks
+from prompt.prompt import Chunks, ps1_prompt
 
 
 class TestPromptWidths:
@@ -308,3 +310,142 @@ class TestChunksWidthCalculation:
 
         filler_count_160 = (160 - 1) // len(chunks.filler_char) - 1
         assert filler_count_160 > filler_count_80
+
+
+class TestPs1EndToEnd:
+    """End-to-end tests that call ps1_prompt() with minimal mocking.
+
+    Only terminal tab commands and the projects config file are mocked,
+    since those depend on external state. Everything else (git, path,
+    user, time, filler, etc.) runs for real.
+    """
+
+    def _strip_ansi_codes(self, text: str) -> str:
+        ansi_escape = re.compile(r'\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*\x07)')
+        return ansi_escape.sub('', text)
+
+    @pytest.mark.integration
+    def test_ps1_prompt_generates_without_error(self, monkeypatch):
+        """Test that ps1_prompt() runs to completion and returns a non-empty string."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as f:
+            f.write("testproj\t/nonexistent/path\t#3366AA\n")
+            temp_projects = f.name
+
+        try:
+            monkeypatch.setenv("COLUMNS", "100")
+            monkeypatch.setenv("KITTY_PID", "")
+            monkeypatch.setenv("ITERM_SESSION_ID", "")
+
+            with patch("prompt.prompt.Path") as mock_path_cls:
+                # Only mock the projects config file lookup
+                from pathlib import Path as RealPath
+                def path_side_effect(arg):
+                    if arg == "~/.prompt-projects":
+                        p = RealPath(temp_projects)
+                        return p
+                    return RealPath(arg)
+                mock_path_cls.side_effect = path_side_effect
+
+                output = ps1_prompt()
+
+            assert isinstance(output, str)
+            assert len(output) > 0
+
+            # Should contain a newline (dollar sign is on second line)
+            assert "\n" in output
+
+            # Visible content should be non-empty
+            clean = self._strip_ansi_codes(output)
+            assert len(clean.strip()) > 0
+        finally:
+            os.unlink(temp_projects)
+
+    @pytest.mark.integration
+    def test_ps1_prompt_contains_expected_segments(self, monkeypatch):
+        """Test that the prompt contains expected content like user, time, and path."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as f:
+            f.write("testproj\t/nonexistent/path\t#3366AA\n")
+            temp_projects = f.name
+
+        try:
+            monkeypatch.setenv("COLUMNS", "200")
+            monkeypatch.setenv("KITTY_PID", "")
+            monkeypatch.setenv("ITERM_SESSION_ID", "")
+
+            with patch("prompt.prompt.Path") as mock_path_cls:
+                from pathlib import Path as RealPath
+                def path_side_effect(arg):
+                    if arg == "~/.prompt-projects":
+                        return RealPath(temp_projects)
+                    return RealPath(arg)
+                mock_path_cls.side_effect = path_side_effect
+
+                output = ps1_prompt()
+
+            clean = self._strip_ansi_codes(output)
+
+            # Should contain the username
+            assert os.environ.get("USER", "") in clean
+
+            # Should contain a time-like pattern (HH:MM)
+            assert re.search(r'\d{2}:\d{2}', clean), "Expected time (HH:MM) in prompt"
+
+            # Should contain the dollar sign
+            assert "❖" in clean
+        finally:
+            os.unlink(temp_projects)
+
+    @pytest.mark.integration
+    def test_ps1_prompt_works_without_columns_env(self, monkeypatch):
+        """Test that ps1_prompt() works even when COLUMNS is not set (pipe/subshell)."""
+        monkeypatch.delenv("COLUMNS", raising=False)
+        monkeypatch.setenv("KITTY_PID", "")
+        monkeypatch.setenv("ITERM_SESSION_ID", "")
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as f:
+            f.write("")
+            temp_projects = f.name
+
+        try:
+            with patch("prompt.prompt.Path") as mock_path_cls:
+                from pathlib import Path as RealPath
+                def path_side_effect(arg):
+                    if arg == "~/.prompt-projects":
+                        return RealPath(temp_projects)
+                    return RealPath(arg)
+                mock_path_cls.side_effect = path_side_effect
+
+                output = ps1_prompt()
+
+            assert isinstance(output, str)
+            assert len(output) > 0
+        finally:
+            os.unlink(temp_projects)
+
+    @pytest.mark.integration
+    def test_ps1_prompt_no_exception_in_git_repo(self, monkeypatch):
+        """Test that ps1_prompt() works in the current directory (a real git repo)."""
+        monkeypatch.setenv("COLUMNS", "120")
+        monkeypatch.setenv("KITTY_PID", "")
+        monkeypatch.setenv("ITERM_SESSION_ID", "")
+
+        # Use a temp empty projects file so no project matches
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".tsv", delete=False) as f:
+            f.write("")
+            temp_projects = f.name
+
+        try:
+            with patch("prompt.prompt.Path") as mock_path_cls:
+                from pathlib import Path as RealPath
+                def path_side_effect(arg):
+                    if arg == "~/.prompt-projects":
+                        return RealPath(temp_projects)
+                    return RealPath(arg)
+                mock_path_cls.side_effect = path_side_effect
+
+                output = ps1_prompt()
+
+            assert isinstance(output, str)
+            assert len(output) > 0
+        finally:
+            os.unlink(temp_projects)

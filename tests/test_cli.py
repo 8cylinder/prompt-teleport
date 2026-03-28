@@ -45,8 +45,7 @@ class TestPs1Command:
                 "USER": "testuser",
             }.get(key, default)
 
-            with patch("os.popen") as mock_popen:
-                mock_popen.return_value.read.return_value = "24 80"
+            with patch("os.get_terminal_size", return_value=os.terminal_size((80, 24))):
 
                 with patch("subprocess.run") as mock_run:
                     mock_run.return_value.returncode = 0

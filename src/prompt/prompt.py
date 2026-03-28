@@ -355,18 +355,27 @@ def snip(string: str, length: int, sep: str, position: float = 0.5) -> tuple[str
 class Chunks:
     HOME: str = os.environ.get("HOME", "")
     IS_SSH: str = os.environ.get("SSH_CLIENT", "")
+    HOSTNAME: str = socket.gethostname()
 
     def __init__(self, columns: str | None = None) -> None:
         ssh_location = "Remote" if self.IS_SSH else "Local"
         self.theme = self._get_theme(ssh_location)
         self.segment_lengths: list[int] = []
-        # Accept columns parameter for testing, fall back to COLUMNS env var, then detect via stty
+        # Accept columns parameter for testing, fall back to COLUMNS env var, then detect
         if columns:
             self.columns = columns
         else:
             self.columns = os.environ.get("COLUMNS") or ""
             if not self.columns:
-                _, self.columns = os.popen("stty size", "r").read().split()
+                try:
+                    self.columns = str(os.get_terminal_size().columns)
+                except OSError:
+                    # No tty (e.g. running in subshell via $(prompt ps1)).
+                    # stty reads /dev/tty directly so it works from subshells.
+                    try:
+                        _, self.columns = os.popen("stty size", "r").read().split()
+                    except ValueError:
+                        self.columns = "80"
         try:
             self.snip_char = self.theme["snip_char"]["char"]
         except KeyError:
@@ -375,6 +384,56 @@ class Chunks:
             self.filler_char = self.theme["filler_char"]["char"]
         except KeyError:
             self.filler_char = Ellipses.hr
+
+        self._dir_markers = self._scan_parent_dirs()
+        self._git_proc: subprocess.Popen[str] | None = None
+
+    def _scan_parent_dirs(self) -> dict[str, Path | None]:
+        """Walk up the directory tree once, collecting .git, .bare, and .ddev markers."""
+        results: dict[str, Path | None] = {".git": None, ".bare": None, ".ddev": None}
+        targets_remaining = set(results.keys())
+        current = Path.cwd().resolve()
+        home = Path(self.HOME).resolve() if self.HOME else None
+
+        while current != current.parent and targets_remaining:
+            if home and current == home:
+                break
+            for target in list(targets_remaining):
+                candidate = current / target
+                if target == ".git":
+                    # .git can be a dir (normal repo) or file (worktree)
+                    if candidate.is_dir() or candidate.is_file():
+                        results[target] = candidate
+                        targets_remaining.discard(target)
+                else:
+                    if candidate.exists():
+                        results[target] = candidate
+                        targets_remaining.discard(target)
+            current = current.parent
+
+        return results
+
+    def launch_git_status(self) -> None:
+        """Pre-launch git status as a non-blocking subprocess.
+
+        Call this early so git runs in the background while other chunks are built.
+        """
+        if self._dir_markers.get(".git") is not None:
+            try:
+                self._git_proc = subprocess.Popen(
+                    [
+                        "git",
+                        "status",
+                        "--porcelain=v1",
+                        "--branch",
+                        "--untracked-files=no",
+                    ],
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+            except FileNotFoundError:
+                self._git_proc = None
 
     def _get_theme(self, theme_name: str) -> dict[Any, Any]:
         theme = {}
@@ -609,9 +668,17 @@ class Chunks:
                 project_fg,
                 cur,
                 flox_env_name,
+                self._dir_markers,
             )
         elif os.environ.get("ITERM_SESSION_ID"):
-            set_iterm2_tabs(project_name, project_bg, project_fg, cur, flox_env_name)
+            set_iterm2_tabs(
+                project_name,
+                project_bg,
+                project_fg,
+                cur,
+                flox_env_name,
+                self._dir_markers,
+            )
 
         return (project_name, project_bg, project_fg)
 
@@ -666,9 +733,8 @@ class Chunks:
         # >>> return r'\u@\H'
         # Use this instead:
         cur_user = os.environ["USER"]
-        hostname = socket.gethostname()
         return self.apply_chunk_theme(
-            Segment.USER, ("{}@{}".format(cur_user, hostname),)
+            Segment.USER, ("{}@{}".format(cur_user, self.HOSTNAME),)
         )
 
     def _chunk_sink(self) -> str:
@@ -680,29 +746,40 @@ class Chunks:
         return self.apply_chunk_theme(Segment.TIME, (formated,))
 
     def _chunk_branch(self) -> str:
-        try:
-            git_status = subprocess.run(
-                [
-                    "git",
-                    "status",
-                    "--porcelain=v1",
-                    "--branch",
-                    "--untracked-files=no",
-                ],
-                universal_newlines=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
-            )
-        except FileNotFoundError:
-            return ""
-        if not git_status:
-            return ""
-        if not git_status.stdout:
-            return ""
-        if git_status.stdout == "## No commits yet on main\n":
+        if self._dir_markers.get(".git") is None:
             return ""
 
-        stdout = git_status.stdout
+        # Use pre-launched git process if available, otherwise run synchronously
+        if self._git_proc is not None:
+            stdout, _ = self._git_proc.communicate()
+            self._git_proc = None
+            if not stdout:
+                return ""
+            if stdout == "## No commits yet on main\n":
+                return ""
+        else:
+            try:
+                git_status = subprocess.run(
+                    [
+                        "git",
+                        "status",
+                        "--porcelain=v1",
+                        "--branch",
+                        "--untracked-files=no",
+                    ],
+                    universal_newlines=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+            except FileNotFoundError:
+                return ""
+            if not git_status:
+                return ""
+            if not git_status.stdout:
+                return ""
+            if git_status.stdout == "## No commits yet on main\n":
+                return ""
+            stdout = git_status.stdout
         lines = stdout.splitlines()
         # parse lines[0]: '## main...origin/main'
         branch = lines[0][3:].split("...")[0]
@@ -829,7 +906,7 @@ class Chunks:
 
     def _chunk_ddev(self) -> str:
         ddev = ""
-        if ddev_dir := find_dir_upwards(Path(os.path.curdir), ".ddev", stop_at="~"):
+        if self._dir_markers.get(".ddev"):
             output = subprocess.run(
                 ["ddev", "describe", "--json-output"],
                 universal_newlines=True,
@@ -885,7 +962,12 @@ def adjust_rgb(
 
 
 def set_iterm2_tabs(
-    project_name: str, project_bg: str, project_fg: str, current: Path, flox_env: str
+    project_name: str,
+    project_bg: str,
+    project_fg: str,
+    current: Path,
+    flox_env: str,
+    dir_markers: dict[str, Path | None] | None = None,
 ) -> None:
     r"""Set the tab title.
 
@@ -908,9 +990,17 @@ def set_iterm2_tabs(
     adjust_hue
     hash_to_float
     """
-    worktree_branch_root = find_dir_upwards(current, ".git", ftype="file")
-    worktree_root = (Path() / ".bare").absolute()
-    is_worktree_root = worktree_root.exists()
+    if dir_markers:
+        git_marker = dir_markers.get(".git")
+        worktree_branch_root = (
+            git_marker if git_marker and git_marker.is_file() else None
+        )
+        bare_marker = dir_markers.get(".bare")
+        is_worktree_root = bare_marker is not None
+    else:
+        worktree_branch_root = find_dir_upwards(current, ".git", ftype="file")
+        worktree_root = (Path() / ".bare").absolute()
+        is_worktree_root = worktree_root.exists()
 
     rgb_template = "\033]6;1;bg;{color};brightness;{value}\a"
 
@@ -961,12 +1051,20 @@ def set_kitty_tabs(
     project_fg: str,
     current: Path,
     flox_env: str,
-    # branch: str,
+    dir_markers: dict[str, Path | None] | None = None,
 ) -> None:
     """Set the kitty terminal tab colors and title"""
-    worktree_branch_root = find_dir_upwards(current, ".git", ftype="file")
-    worktree_root = (Path() / ".bare").absolute()
-    is_worktree_root = worktree_root.exists()
+    if dir_markers:
+        git_marker = dir_markers.get(".git")
+        worktree_branch_root = (
+            git_marker if git_marker and git_marker.is_file() else None
+        )
+        bare_marker = dir_markers.get(".bare")
+        is_worktree_root = bare_marker is not None
+    else:
+        worktree_branch_root = find_dir_upwards(current, ".git", ftype="file")
+        worktree_root = (Path() / ".bare").absolute()
+        is_worktree_root = worktree_root.exists()
 
     is_worktree_subdir = worktree_branch_root and not is_worktree_root
     is_regular_project = project_name and not is_worktree_subdir
@@ -1010,16 +1108,22 @@ def set_kitty_tabs(
             "inactive_bg": colorscale(base_color, 0.15),
         }
     all_colors = [f"{k}={v}" for k, v in colors.items()]
-    color_cmd = ["kitten", "@", "set-tab-color"] + all_colors
-    title_cmd = ["kitten", "@", "set-tab-title", tab_title]
-    # use the blocking `call` instead of `popen` which doesn't wait for
-    # the command to finish and that causes the terminal to get messed up.
-    subprocess.call(title_cmd)
-    subprocess.call(color_cmd)
+    subprocess.call(
+        ["kitten", "@", "set-tab-title", tab_title],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    subprocess.call(
+        ["kitten", "@", "set-tab-color"] + all_colors,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def ps1_prompt() -> str:
     c = Chunks(columns=os.environ.get("COLUMNS"))
+    # Pre-launch git status so it runs while other segments are built
+    c.launch_git_status()
     right_segments = left_segments = last_segments = []
     try:
         left_segments = [
@@ -1053,9 +1157,5 @@ def ps1_prompt() -> str:
     right = " ".join(filter(None, [c.get_chunk(i) for i in right_segments if i]))
     left = " ".join(filter(None, [c.get_chunk(i) for i in left_segments if i]))
     last = " ".join(filter(None, [c.get_chunk(i) for i in last_segments if i]))
-    # invisible = c.get_chunk(Segment.INVISIBLE)
-    # line = f"{invisible}{left} {right}{last}"
     line = f"{left} {right}{last}"
     return line
-    # print()
-    # print(line)
