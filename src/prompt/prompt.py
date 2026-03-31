@@ -3,6 +3,7 @@ import datetime
 import hashlib
 import os
 import random
+import re
 import socket
 import subprocess
 import sys
@@ -658,7 +659,7 @@ class Chunks:
             flox_env_name = ""
         else:
             flox_env_name = (
-                " " + Ellipses.xlarge_dot  # Ellipses.green_dot
+                Ellipses.xlarge_dot  # Ellipses.green_dot
             )  # Ellipses.large_dot # f'[{flox_env_name}]'
 
         if os.environ.get("KITTY_PID"):
@@ -1054,24 +1055,26 @@ def set_kitty_tabs(
     dir_markers: dict[str, Path | None] | None = None,
 ) -> None:
     """Set the kitty terminal tab colors and title"""
+    is_worktree_subdir = False
+    is_regular_project = False
+    git_root = ""
     if dir_markers:
-        git_marker = dir_markers.get(".git")
-        worktree_branch_root = (
-            git_marker if git_marker and git_marker.is_file() else None
-        )
-        bare_marker = dir_markers.get(".bare")
-        is_worktree_root = bare_marker is not None
-    else:
-        worktree_branch_root = find_dir_upwards(current, ".git", ftype="file")
-        worktree_root = (Path() / ".bare").absolute()
-        is_worktree_root = worktree_root.exists()
+        bare = dir_markers.get(".bare")
+        git = dir_markers.get(".git")
 
-    is_worktree_subdir = worktree_branch_root and not is_worktree_root
-    is_regular_project = project_name and not is_worktree_subdir
+        worktree_root = Path(dir_markers[".bare"]).parent if bare else None
+        git_root = Path(dir_markers[".git"]).parent if git else None
+        if bare and (worktree_root != git_root):
+            is_worktree_subdir = True
+        elif git:
+            is_regular_project = True
 
     if is_worktree_subdir:
-        assert worktree_branch_root is not None
-        tab_title = project_name + flox_env
+        worktree_branch_root = Path(dir_markers[".git"]).parent
+        git_dir = worktree_branch_root.name
+        git_dir = re.sub(r"\d*--", "", git_dir) # remove leading Monday id
+        # tab_title = f"{project_name} [{git_dir}]{flox_env}"
+        tab_title = f"{git_dir}{flox_env}"
 
         bg_rgb = hex_to_rgb(project_fg)
         squeeze_amount = 0
