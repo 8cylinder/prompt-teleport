@@ -44,8 +44,33 @@ def write_csv(odict: dict[str, list[str]]) -> None:
             writer.writerow(line)
 
 
+def _find_worktree_root(pwd: Path) -> Path | None:
+    """Walk up from pwd looking for a .git file (worktree marker).
+
+    In a git worktree, the branch checkout has a .git *file* (not directory)
+    pointing to the main repo's worktree metadata. The directory containing
+    that .git file is the worktree branch root.
+
+    Returns None if not inside a worktree branch.
+    """
+    current = pwd
+    while current != current.parent:
+        git_path = current / ".git"
+        if git_path.is_file():
+            return current
+        if git_path.is_dir():
+            # Regular git repo, not a worktree branch
+            return None
+        current = current.parent
+    return None
+
+
 def get_project_dir(projects: dict[str, list[str]]) -> str | bool:
     pwd = Path(os.path.realpath(os.path.curdir))
+
+    # Check if we're inside a worktree branch
+    worktree_root = _find_worktree_root(pwd)
+
     for project, project_info in projects.items():
         path = Path(project_info[0])
         if pwd == path:
@@ -53,6 +78,10 @@ def get_project_dir(projects: dict[str, list[str]]) -> str | bool:
             # probably wants to change projects
             return False
         if pwd.is_relative_to(path):  #  pwd.startswith(path):
+            # If in a worktree branch, cd to the worktree root
+            # instead of the registered project root
+            if worktree_root and pwd != worktree_root:
+                return str(worktree_root)
             # is in a subdir of a project and
             # the user probably want to go to root
             return str(path)
