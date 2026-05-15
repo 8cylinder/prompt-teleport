@@ -1072,7 +1072,7 @@ def set_kitty_tabs(
     if is_worktree_subdir:
         worktree_branch_root = Path(dir_markers[".git"]).parent
         git_dir = worktree_branch_root.name
-        git_dir = re.sub(r"\d*--", "", git_dir) # remove leading Monday id
+        git_dir = re.sub(r"\d*--", "", git_dir)  # remove leading Monday id
         # tab_title = f"{project_name} [{git_dir}]{flox_env}"
         tab_title = f"{git_dir}{flox_env}"
 
