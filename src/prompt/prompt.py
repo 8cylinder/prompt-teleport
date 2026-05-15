@@ -37,6 +37,7 @@ class Segment(Enum):
     DDEV = auto()
     INVISIBLE = auto()
     ORB = auto()
+    TTY = auto()
 
 
 class Enviroment(Enum):
@@ -141,6 +142,7 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.USER: {"fg": (136, 183, 108)},
         Segment.PATH: {"fg": (93, 159, 222)},
         Segment.TIME: {"fg": (52, 90, 125)},
+        Segment.TTY: {"fg": (52, 90, 125)},
         Segment.PIPENV: {"fg": (70, 204, 64), "bg": (36, 135, 75)},
         Segment.BRANCH: {"fg": (236, 199, 0)},
         Segment.VIRTUAL: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
@@ -163,6 +165,7 @@ themes: dict[str, dict[Segment | str, dict[str, Any]]] = {
         Segment.PATH: {"fg": (252, 175, 62), "bg": ""},
         Segment.SSH: {"fg": (204, 0, 0), "bg": (66, 12, 5)},
         Segment.TIME: {"fg": "red", "bg": ""},
+        Segment.TTY: {"fg": "red", "bg": ""},
         Segment.PIPENV: {"fg": (70, 204, 64), "bg": (36, 135, 75)},
         Segment.BRANCH: {"fg": (252, 175, 62)},
         Segment.VIRTUAL: {"fg": (70, 204, 64), "bg": (25, 94, 52)},
@@ -746,6 +749,15 @@ class Chunks:
         formated = now.strftime("%H:%M")
         return self.apply_chunk_theme(Segment.TIME, (formated,))
 
+    def _chunk_tty(self) -> str:
+        try:
+            tty = os.ttyname(sys.stdin.fileno())
+        except OSError:
+            tty = ""
+        if tty:
+            tty = tty.replace("/dev/", "")
+        return self.apply_chunk_theme(Segment.TTY, (tty,)) if tty else ""
+
     def _chunk_branch(self) -> str:
         if self._dir_markers.get(".git") is None:
             return ""
@@ -1147,6 +1159,7 @@ def ps1_prompt() -> str:
         ]
         right_segments = [
             Segment.TIME,
+            Segment.TTY,
         ]
         last_segments = [
             Segment.DOLLAR,
